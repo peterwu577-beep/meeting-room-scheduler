@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Seattle District Meeting Room Scheduler</title>
+  <style>
+    :root { --bg:#f8fafc; --fg:#0f172a; --muted:#64748b; --card:#ffffff; --line:#e2e8f0; --accent:#0ea5e9; }
+    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    body{margin:0;background:var(--bg);color:var(--fg)}
+    .container{max-width:1100px;margin:0 auto;padding:24px}
+    .toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .controls{display:flex;gap:8px;flex-wrap:wrap}
+    input,select,button,label{font-size:14px}
+    input[type=date],select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff}
+    button{border:0;border-radius:16px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.06);padding:8px 12px;cursor:pointer}
+    button:hover{box-shadow:0 3px 10px rgba(0,0,0,.08)}
+    .grid{display:grid;grid-template-columns:140px 1fr;gap:12px}
+    .times{padding-top:44px}
+    .time{height:40px;font-size:12px;color:var(--muted);display:flex;align-items:center}
+    .board{position:relative;background:var(--card);border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:12px}
+    .tracks{position:relative;height:720px} /* 10 hours * 2 slots * 36px each ≈ adjustable below */
+    .row{position:absolute;left:0;right:0;border-top:1px solid var(--line)}
+    .booking{position:absolute;left:8px;right:8px;background:#dbeafe;border:1px solid #93c5fd;color:#0c4a6e;border-radius:12px;padding:8px 10px;font-size:13px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+    .booking .meta{font-size:12px;color:#075985}
+    .muted{color:var(--muted);font-size:12px;margin-top:6px}
+    .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+    .card{background:var(--card);border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:16px}
+    .card h3{margin:0 0 8px 0;font-size:15px}
+
+    /* Modal */
+    .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:16px}
+    .modal{background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.2);width:100%;max-width:420px;padding:18px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .field{display:flex;flex-direction:column;gap:6px}
+    .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="toolbar">
+      <h1 style="margin:0;font-size:22px;font-weight:600">Seattle District Meeting Room Scheduler</h1>
+      <div class="controls">
+        <input id="date" type="date" />
+        <select id="room"></select>
+        <button id="newBtn">+ New booking</button>
+        <button id="exportBtn">Export</button>
+        <label style="background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.06);padding:8px 12px;border-radius:16px;cursor:pointer">Import
+          <input id="importInput" type="file" accept="application/json" style="display:none" />
+        </label>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="times" id="times"></div>
+      <div class="board">
+        <div id="dayLabel" class="muted" style="margin:6px 6px 12px 6px"></div>
+        <div class="tracks" id="tracks"></div>
+        <div class="muted">Drag‑and‑drop not supported (static site). Use “New booking”.</div>
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <h3>What this gives you</h3>
+        <ul>
+          <li>Choose any start/end time in 30‑minute steps.</li>
+          <li>Four rooms (Everett, Tukwila, N Kent, S Kent).</li>
+          <li>Local save (per browser) + JSON export/import.</li>
+          <li>Conflict detection prevents overlaps.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Limitations (static site)</h3>
+        <ul>
+          <li>No real‑time multi‑user sync without a backend.</li>
+          <li>No sign‑in or email invites.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <template id="modalTpl">
+    <div class="backdrop">
+      <div class="modal">
+        <h2 id="modalTitle" style="margin:0 0 8px 0;font-size:18px;font-weight:600">New booking</h2>
+        <div class="grid2">
+          <div class="field">
+            <label class="muted" style="margin:0">Start</label>
+            <input id="start" type="time" step="1800" />
+          </div>
+          <div class="field">
+            <label class="muted" style="margin:0">End</label>
+            <input id="end" type="time" step="1800" />
+          </div>
+          <div class="field" style="grid-column:1/ -1">
+            <label class="muted" style="margin:0">Label (kept generic)</label>
+            <input id="label" type="text" placeholder="Busy" />
+          </div>
+        </div>
+        <div class="actions">
+          <button id="cancelBtn">Cancel</button>
+          <button id="saveBtn" style="background:black;color:#fff">Save</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    // --- CONFIG ---
+    const ROOMS = [
+      { id: 'everett', name: 'Everett' },
+      { id: 'tukwila', name: 'Tukwila' },
+      { id: 'n_kent', name: 'N Kent' },
+      { id: 's_kent', name: 'S Kent' },
+    ];
+    const START_HOUR = 8; // 8 AM
+    const END_HOUR = 18;  // 6 PM
+    const SLOT_MINUTES = 30; // 30 min increments
+
+    // --- STATE ---
+    const dateEl = document.getElementById('date');
+    const roomEl = document.getElementById('room');
+    const tracksEl = document.getElementById('tracks');
+    const timesEl = document.getElementById('times');
+    const dayLabel = document.getElementById('dayLabel');
+
+    const fmt = new Intl.DateTimeFormat(undefined, { year:'numeric', month:'short', day:'2-digit', weekday:'short' });
+
+    function todayISO(){ const d = new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); }
+    function key(roomId, iso){ return `${roomId}::${iso}`; }
+    function getBookings(roomId, iso){ const raw = localStorage.getItem('roomScheduler.bookings'); const all = raw? JSON.parse(raw): {}; return all[key(roomId, iso)] || []; }
+    function setBookings(roomId, iso, list){ const raw = localStorage.getItem('roomScheduler.bookings'); const all = raw? JSON.parse(raw): {}; all[key(roomId, iso)] = list; localStorage.setItem('roomScheduler.bookings', JSON.stringify(all)); }
+
+    function timeslots(){ const out=[]; for(let h=START_HOUR; h<END_HOUR; h++){ for(let m=0; m<60; m+=SLOT_MINUTES){ out.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`); } } return out; }
+    const SLOTS = timeslots();
+
+    function toMin(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
+    function overlaps(aS,aE,bS,bE){ return toMin(aS) < toMin(bE) && toMin(bS) < toMin(aE); }
+
+    function renderTimes(){
+      timesEl.innerHTML = '';
+      const label = document.createElement('div');
+      label.className = 'muted';
+      label.textContent = 'Time';
+      timesEl.appendChild(label);
+      SLOTS.forEach((t, i)=>{
+        if(i % 2 === 0){ // show each hour
+          const d = document.createElement('div'); d.className='time'; d.textContent = t; timesEl.appendChild(d);
+        } else {
+          const d = document.createElement('div'); d.className='time'; d.textContent = ''; timesEl.appendChild(d);
+        }
+      });
+    }
+
+    function renderGrid(){
+      tracksEl.innerHTML = '';
+      dayLabel.textContent = fmt.format(new Date(dateEl.value));
+      // horizontal rows
+      SLOTS.forEach((t,i)=>{
+        const r = document.createElement('div');
+        r.className = 'row';
+        r.style.top = `${(i*(100/(SLOTS.length)))}%`;
+        tracksEl.appendChild(r);
+      });
+
+      // bookings
+      const list = getBookings(roomEl.value, dateEl.value);
+      list.forEach(b=>{
+        const sIdx = SLOTS.indexOf(b.start);
+        const eIdx = Math.max(sIdx+1, SLOTS.indexOf(b.end));
+        const top = (sIdx)*(100/(SLOTS.length));
+        const height = (eIdx - sIdx)*(100/(SLOTS.length));
+        const el = document.createElement('div');
+        el.className = 'booking';
+        el.style.top = `${top}%`;
+        el.style.height = `${height}%`;
+        el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <div style="font-weight:600">${b.label || 'Busy'}</div>
+            <div>
+              <button data-act="edit" data-id="${b.id}" style="background:transparent;color:#0369a1;text-decoration:underline;border:0;cursor:pointer;font-size:12px">Edit</button>
+              <button data-act="del" data-id="${b.id}" style="background:transparent;color:#dc2626;text-decoration:underline;border:0;cursor:pointer;font-size:12px">Delete</button>
+            </div>
+          </div>
+          <div class="meta">${b.start} – ${b.end}</div>`;
+        el.addEventListener('click', (e)=>{
+          const act = e.target.getAttribute('data-act');
+          const id = e.target.getAttribute('data-id');
+          if(!act) return;
+          if(act==='edit') openModal(list.find(x=>x.id===id));
+          if(act==='del') { const filtered = list.filter(x=>x.id!==id); setBookings(roomEl.value, dateEl.value, filtered); renderGrid(); }
+          e.stopPropagation();
+        });
+        tracksEl.appendChild(el);
+      });
+    }
+
+    function uuid(){ return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16)); }
+
+    function openModal(existing){
+      const tpl = document.getElementById('modalTpl');
+      const node = tpl.content.cloneNode(true);
+      const back = node.querySelector('.backdrop');
+      const start = node.getElementById('start');
+      const end = node.getElementById('end');
+      const label = node.getElementById('label');
+      const saveBtn = node.getElementById('saveBtn');
+      const cancelBtn = node.getElementById('cancelBtn');
+      const title = node.getElementById('modalTitle');
+
+      // defaults
+      start.value = `${String(START_HOUR).padStart(2,'0')}:00`;
+      end.value = `${String(START_HOUR+1).padStart(2,'0')}:00`;
+      label.value = 'Busy';
+      if(existing){
+        title.textContent = 'Edit booking';
+        start.value = existing.start; end.value = existing.end; label.value = existing.label || 'Busy';
+      }
+
+      cancelBtn.addEventListener('click', ()=>document.body.removeChild(back));
+      saveBtn.addEventListener('click', ()=>{
+        const s = start.value; const e = end.value; const L = label.value.trim() || 'Busy';
+        if(toMin(e) <= toMin(s)){ alert('End time must be after start time.'); return; }
+        const list = getBookings(roomEl.value, dateEl.value);
+        const conflict = list.some(b => (existing? b.id!==existing.id : true) && overlaps(s,e,b.start,b.end));
+        if(conflict){ alert('Time conflict: overlaps an existing booking.'); return; }
+        let updated;
+        if(existing){ updated = list.map(b => b.id===existing.id ? { ...b, start:s, end:e, label:L } : b); }
+        else { updated = [...list, { id: uuid(), start:s, end:e, label:L }]; }
+        updated.sort((a,b)=> toMin(a.start)-toMin(b.start));
+        setBookings(roomEl.value, dateEl.value, updated);
+        document.body.removeChild(back);
+        renderGrid();
+      });
+
+      document.body.appendChild(back);
+    }
+
+    // Export / Import
+    document.getElementById('exportBtn').addEventListener('click', ()=>{
+      const raw = localStorage.getItem('roomScheduler.bookings') || '{}';
+      const blob = new Blob([raw], { type:'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='room_scheduler.json'; a.click(); URL.revokeObjectURL(url);
+    });
+    document.getElementById('importInput').addEventListener('change', (ev)=>{
+      const f = ev.target.files?.[0]; if(!f) return; const reader = new FileReader();
+      reader.onload = () => { try { const obj = JSON.parse(reader.result); localStorage.setItem('roomScheduler.bookings', JSON.stringify(obj)); renderGrid(); } catch(e){ alert('Invalid JSON'); } };
+      reader.readAsText(f); ev.target.value='';
+    });
+
+    // New booking button
+    document.getElementById('newBtn').addEventListener('click', ()=>openModal());
+
+    // Populate room select
+    ROOMS.forEach(r=>{ const o=document.createElement('option'); o.value=r.id; o.textContent=r.name; roomEl.appendChild(o); });
+
+    // Init date & listeners
+    dateEl.value = todayISO();
+    dateEl.addEventListener('change', renderGrid);
+    roomEl.addEventListener('change', renderGrid);
+
+    renderTimes();
+    renderGrid();
+  </script>
+</body>
+</html>
