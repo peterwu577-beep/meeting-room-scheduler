@@ -97,7 +97,7 @@
         <h2 id="modalTitle" style="margin:0 0 8px 0;font-size:18px;font-weight:600">New booking</h2>
         <div class="grid2">
           <div class="field">
-            <label class="muted" style="margin:0">Notes</label>
+            <label class="muted" style="margin:0">Start</label>
             <input id="start" type="time" step="1800" />
           </div>
           <div class="field">
@@ -106,7 +106,7 @@
           </div>
           <div class="field" style="grid-column:1/ -1">
             <label class="muted" style="margin:0">Notes</label>
-            <input id="label" type="text" placeholder="Busy" />
+            <input id="label" type="text" placeholder="" />
           </div>
         </div>
         <div class="actions">
@@ -245,12 +245,12 @@
     function openModal(existing){
       const tpl=document.getElementById('modalTpl'); const node=tpl.content.cloneNode(true); const back=node.querySelector('.backdrop');
       const start=node.getElementById('start'); const end=node.getElementById('end'); const label=node.getElementById('label'); const saveBtn=node.getElementById('saveBtn'); const cancelBtn=node.getElementById('cancelBtn'); const title=node.getElementById('modalTitle');
-      start.value=fmtTime(START_MIN); end.value=fmtTime(START_MIN+60); label.value='Busy'; start.min=fmtTime(START_MIN); end.min=fmtTime(START_MIN); start.max=fmtTime(END_MIN); end.max=fmtTime(END_MIN);
+      start.value=fmtTime(START_MIN); end.value=fmtTime(START_MIN+60); label.value='Enter your name'; start.min=fmtTime(START_MIN); end.min=fmtTime(START_MIN); start.max=fmtTime(END_MIN); end.max=fmtTime(END_MIN);
       let targetISO=dateEl.value; if(existing){ title.textContent='Edit booking'; start.value=existing.start; end.value=existing.end; label.value=existing.label||'Busy'; if(existing.__iso) targetISO=existing.__iso; }
       cancelBtn.addEventListener('click',()=>document.body.removeChild(back));
       saveBtn.addEventListener('click',()=>{
         let s=toMin(start.value), e=toMin(end.value); s=snap30(s); e=snap30(e);
-        const L=(label.value||'Busy').trim();
+        const L=(label.value||'Enter your name').trim();
         if(e<=s) return alert('End time must be after start time.');
         if(s<START_MIN||e>END_MIN) return alert('Time outside working range.');
         const list=getList(roomEl.value,targetISO);
