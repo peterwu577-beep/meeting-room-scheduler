@@ -3,9 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>District Room Scheduler</title>
+  <title>Seattle District Meeting Room Scheduler</title>
   <style>
-    :root { --bg:#f8fafc; --fg:#0f172a; --muted:#64748b; --card:#ffffff; --line:#e2e8f0; --accent:#0ea5e9; }
+    :root {
+      --bg:#f8fafc; --fg:#0f172a; --muted:#64748b; --card:#ffffff; --line:#e2e8f0; --accent:#0ea5e9;
+      --header-h:32px; --slot-h:40px;
+    }
     *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
     body{margin:0;background:var(--bg);color:var(--fg)}
     .container{max-width:1200px;margin:0 auto;padding:24px}
@@ -20,44 +23,50 @@
     .segmented button{box-shadow:none;border-radius:0;background:#fff}
     .segmented button.active{background:#0f172a;color:#fff}
 
-    .grid{display:grid;grid-template-columns:140px 1fr;gap:12px}
-    .times{padding-top:44px}
-    .time{height:40px;font-size:12px;color:var(--muted);display:flex;align-items:center}
+    /* DAY GRID */
+    .grid{display:grid;grid-template-columns:90px 1fr;gap:12px}
+    .times{padding-top:var(--header-h);position:relative}
+    .time{height:var(--slot-h);font-size:12px;color:var(--muted);display:flex;align-items:flex-start;justify-content:flex-end;padding-right:8px}
     .board{position:relative;background:var(--card);border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:12px}
-    .tracks{position:relative;height:720px}
-    .row{position:absolute;left:0;right:0;border-top:1px solid var(--line)}
+    #dayLabel{height:var(--header-h);display:flex;align-items:center;margin:0 6px 8px 6px}
+    .tracks{position:relative}
+    .row{position:absolute;left:0;right:0;border-top:1px dashed #eef2f7}
+    .row.hour{border-top:2px solid var(--line)}
     .booking{position:absolute;background:#dbeafe;border:1px solid #93c5fd;color:#0c4a6e;border-radius:12px;padding:8px 10px;font-size:13px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
     .booking .meta{font-size:12px;color:#075985}
-    .muted{color:var(--muted);font-size:12px;margin-top:6px}
 
-    /* WEEK VIEW */
-    .weekgrid{display:grid;grid-template-columns:140px repeat(7, 1fr);gap:12px}
-    .dayHeader{height:32px;display:flex;align-items:center;justify-content:center;font-weight:600;color:#0f172a}
+    /* WEEK GRID */
+    .weekgrid{display:grid;grid-template-columns:90px repeat(7, 1fr);gap:12px}
+    .dayHeader{height:var(--header-h);display:flex;align-items:center;justify-content:center;font-weight:600;color:#0f172a}
     .weekBoard{position:relative;background:var(--card);border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:12px;grid-column:2 / -1}
-    .weekTracks{position:relative;height:720px}
+    .weekTracks{position:relative}
     .vcol{position:absolute;top:0;bottom:0;border-left:1px dashed #eef2f7}
     .bookingWeek{position:absolute;background:#e9d5ff;border:1px solid #c084fc;color:#5b21b6;border-radius:12px;padding:6px 8px;font-size:12px}
+
+    /* Modal */
+    .backdrop{position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.45);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px}
+    .modal{background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.2);width:100%;max-width:420px;padding:18px;animation:pop .15s ease-out}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .field{display:flex;flex-direction:column;gap:6px}
+    .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+    @keyframes pop{from{transform:scale(.98);opacity:.6}to{transform:scale(1);opacity:1}}
   </style>
 </head>
 <body>
   <div class="container">
     <div class="toolbar">
-      <h1 style="margin:0;font-size:22px;font-weight:600">District Room Scheduler</h1>
+      <h1 style="margin:0;font-size:22px;font-weight:600">Seattle District Meeting Room Scheduler</h1>
       <div class="controls">
         <input id="date" type="date" />
-        <select id="room"></select>
+        <select id="room" aria-label="Select room"></select>
         <div class="segmented" role="tablist" aria-label="View switch">
           <button id="dayBtn" class="active" aria-pressed="true">Day</button>
           <button id="weekBtn" aria-pressed="false">Week</button>
         </div>
-        <button id="prevBtn">◀</button>
+        <button id="prevBtn" title="Previous">◀</button>
         <button id="todayBtn">Today</button>
-        <button id="nextBtn">▶</button>
+        <button id="nextBtn" title="Next">▶</button>
         <button id="newBtn">+ New booking</button>
-        <button id="exportBtn">Export</button>
-        <label style="background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.06);padding:8px 12px;border-radius:16px;cursor:pointer">Import
-          <input id="importInput" type="file" accept="application/json" style="display:none" />
-        </label>
       </div>
     </div>
 
@@ -65,9 +74,8 @@
     <div id="dayView" class="grid" aria-hidden="false">
       <div class="times" id="times"></div>
       <div class="board">
-        <div id="dayLabel" class="muted" style="margin:6px 6px 12px 6px"></div>
+        <div id="dayLabel" class="muted"></div>
         <div class="tracks" id="tracks"></div>
-        <div class="muted">Drag-and-drop not supported (static site). Use “New booking”.</div>
       </div>
     </div>
 
@@ -89,7 +97,7 @@
         <h2 id="modalTitle" style="margin:0 0 8px 0;font-size:18px;font-weight:600">New booking</h2>
         <div class="grid2">
           <div class="field">
-            <label class="muted" style="margin:0">Start</label>
+            <label class="muted" style="margin:0">Notes</label>
             <input id="start" type="time" step="1800" />
           </div>
           <div class="field">
@@ -97,7 +105,7 @@
             <input id="end" type="time" step="1800" />
           </div>
           <div class="field" style="grid-column:1/ -1">
-            <label class="muted" style="margin:0">Label (kept generic)</label>
+            <label class="muted" style="margin:0">Notes</label>
             <input id="label" type="text" placeholder="Busy" />
           </div>
         </div>
@@ -110,7 +118,164 @@
   </template>
 
   <script>
-    // (JavaScript logic for the scheduler remains identical to the previous version with day/week views)
+    // ---------------- CONFIG ----------------
+    const ROOMS = [
+      { id: 'everett', name: 'Everett' },
+      { id: 'tukwila', name: 'Tukwila' },
+      { id: 'n_kent', name: 'N Kent' },
+      { id: 's_kent', name: 'S Kent' },
+    ];
+    const SLOT_MINUTES = 30;           // 30-min resolution
+    const START_MIN    = 7*60;         // 07:00
+    const END_MIN      = 22*60 + 30;   // 22:30
+    const TOTAL_RANGE  = END_MIN - START_MIN;
+    const SLOT_PX      = 40;           // pixels for each 30-min slot (visual height)
+
+    // ---------------- ELEMENTS ----------------
+    const dateEl = document.getElementById('date');
+    const roomEl = document.getElementById('room');
+    const tracksEl = document.getElementById('tracks');
+    const timesEl  = document.getElementById('times');
+    const dayLabel = document.getElementById('dayLabel');
+
+    const weekView = document.getElementById('weekView');
+    const dayView  = document.getElementById('dayView');
+    const weekHeaders = document.getElementById('weekHeaders');
+    const weekTracks  = document.getElementById('weekTracks');
+    const timesW      = document.getElementById('timesW');
+
+    const dayBtn = document.getElementById('dayBtn');
+    const weekBtn = document.getElementById('weekBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const todayBtn = document.getElementById('todayBtn');
+
+    // ---------------- HELPERS ----------------
+    const fmtDay = new Intl.DateTimeFormat(undefined, { year:'numeric', month:'short', day:'2-digit', weekday:'short' });
+    const fmtDow = new Intl.DateTimeFormat(undefined, { month:'short', day:'2-digit', weekday:'short' });
+    const fmtTime = m => {
+  	let h = Math.floor(m / 60);
+  	const mm = String(m % 60).padStart(2, '0');
+  	const ampm = h >= 12 ? 'PM' : 'AM';
+  	h = h % 12;
+  	if (h === 0) h = 12; // handle midnight/noon edge cases
+  	return `${h}:${mm} ${ampm}`;};
+    function toMin(t) {
+  	const m = t.trim().match(/^(\d{1,2}):(\d{2})(?:\s*([AP]M))?$/i);
+  	if (!m) return NaN;
+  	let h = parseInt(m[1], 10),
+      		min = parseInt(m[2], 10);
+  	const ap = m[3]?.toUpperCase();
+  	if (ap) {
+    		if (ap === 'PM' && h < 12) h += 12;
+    		if (ap === 'AM' && h === 12) h = 0;
+  	}
+  	return h * 60 + min;};
+    const snap30 = m => Math.round(m / 30) * 30; // snap to 30-minute increments
+    const pctFromMin = m => ((m-START_MIN)/TOTAL_RANGE)*100;
+    const heightPct = (s,e) => ((e-s)/TOTAL_RANGE)*100;
+    const todayISO = ()=>{ const d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); };
+    const addDaysISO=(iso,n)=>{ const d=new Date(iso); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
+    const startOfWeekISO=(iso)=>{ const d=new Date(iso); const dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow); return d.toISOString().slice(0,10); };
+
+    const storageKey = (room,iso)=>`${room}::${iso}`;
+    const getAll=()=>{ const raw=localStorage.getItem('roomScheduler.bookings'); return raw?JSON.parse(raw):{}; };
+    const setAll=(obj)=>localStorage.setItem('roomScheduler.bookings', JSON.stringify(obj));
+    const getList=(room,iso)=>getAll()[storageKey(room,iso)]||[];
+    const setList=(room,iso,list)=>{ const all=getAll(); all[storageKey(room,iso)]=list; setAll(all); };
+
+    // ---------------- RENDER ----------------
+    function renderTimes(container){
+      container.innerHTML='';
+      // build labels: bold on hour, blank on half-hour; align to hour lines
+      for(let m=START_MIN; m<=END_MIN; m+=60){
+        const hour=document.createElement('div'); hour.className='time'; hour.textContent=fmtTime(m); hour.style.fontWeight='600'; container.appendChild(hour);
+        const half=document.createElement('div'); half.className='time'; half.textContent=''; container.appendChild(half);
+      }
+    }
+
+    function renderDay(){
+      dayLabel.textContent = fmtDay.format(new Date(dateEl.value));
+      tracksEl.innerHTML='';
+      // give the grid a real height based on slot count
+      tracksEl.style.height = `${(TOTAL_RANGE/SLOT_MINUTES)*SLOT_PX}px`;
+      // grid lines every 30 min (solid hour, dashed half)
+      for(let m=START_MIN, i=0; m<=END_MIN; m+=SLOT_MINUTES, i++){
+        const r=document.createElement('div'); r.className = (i%2===0? 'row hour':'row'); r.style.top=`${pctFromMin(m)}%`; tracksEl.appendChild(r);
+      }
+      // bookings
+      getList(roomEl.value, dateEl.value).forEach(b=>{
+        const s=toMin(b.start), e=toMin(b.end);
+        const el=document.createElement('div'); el.className='booking';
+        el.style.top=`${pctFromMin(s)}%`; el.style.left='8px'; el.style.right='8px'; el.style.height=`${heightPct(s,e)}%`;
+        el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="font-weight:600">${b.label||'Busy'}</div><div><button data-act="edit" data-id="${b.id}" style="background:transparent;color:#0369a1;text-decoration:underline;border:0;cursor:pointer;font-size:12px">Edit</button> <button data-act="del" data-id="${b.id}" style="background:transparent;color:#dc2626;text-decoration:underline;border:0;cursor:pointer;font-size:12px">Delete</button></div><div class="meta">${b.start} – ${b.end}</div>`;
+        el.addEventListener('click',(e)=>{ const act=e.target.getAttribute('data-act'); const id=e.target.getAttribute('data-id'); if(!act)return; const list=getList(roomEl.value,dateEl.value); if(act==='edit') openModal(list.find(x=>x.id===id)); if(act==='del'){ setList(roomEl.value,dateEl.value,list.filter(x=>x.id!==id)); render(); } e.stopPropagation(); });
+        tracksEl.appendChild(el);
+      });
+    }
+
+    function renderWeek(){
+      weekHeaders.innerHTML=''; weekTracks.innerHTML='';
+      const startISO=startOfWeekISO(dateEl.value);
+      const days=Array.from({length:7},(_,i)=>addDaysISO(startISO,i));
+      days.forEach(d=>{ const h=document.createElement('div'); h.className='dayHeader'; h.textContent=fmtDow.format(new Date(d)); weekHeaders.appendChild(h); });
+      weekTracks.style.height = `${(TOTAL_RANGE/SLOT_MINUTES)*SLOT_PX}px`;
+      for(let m=START_MIN, i=0; m<=END_MIN; m+=SLOT_MINUTES, i++){
+        const r=document.createElement('div'); r.className=(i%2===0?'row hour':'row'); r.style.top=`${pctFromMin(m)}%`; weekTracks.appendChild(r); }
+      days.forEach((iso,i)=>{ const v=document.createElement('div'); v.className='vcol'; v.style.left=`calc(${(i*(100/7))}%)`; weekTracks.appendChild(v); });
+      days.forEach((iso, i)=>{
+        getList(roomEl.value, iso).forEach(b=>{
+          const s=toMin(b.start), e=toMin(b.end); const colW=100/7; const el=document.createElement('div'); el.className='bookingWeek';
+          el.style.top=`${pctFromMin(s)}%`; el.style.left=`calc(${i*colW}% + 8px)`; el.style.width=`calc(${colW}% - 16px)`; el.style.height=`${heightPct(s,e)}%`;
+          el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span style="font-weight:600">${b.label||'Busy'}</span><span style="font-size:11px">${b.start}–${b.end}</span></div>`;
+          el.addEventListener('click',()=>openModal({...b,__iso:iso}));
+          weekTracks.appendChild(el);
+        });
+      });
+    }
+
+    function render(){
+      renderTimes(timesEl);
+      if(weekBtn.classList.contains('active')){ renderTimes(timesW); renderWeek(); dayView.style.display='none'; weekView.style.display='grid'; }
+      else{ renderDay(); weekView.style.display='none'; dayView.style.display='grid'; }
+    }
+
+    // ---------- MODAL / CRUD ----------
+    const uuid=()=>([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16));
+    function openModal(existing){
+      const tpl=document.getElementById('modalTpl'); const node=tpl.content.cloneNode(true); const back=node.querySelector('.backdrop');
+      const start=node.getElementById('start'); const end=node.getElementById('end'); const label=node.getElementById('label'); const saveBtn=node.getElementById('saveBtn'); const cancelBtn=node.getElementById('cancelBtn'); const title=node.getElementById('modalTitle');
+      start.value=fmtTime(START_MIN); end.value=fmtTime(START_MIN+60); label.value='Busy'; start.min=fmtTime(START_MIN); end.min=fmtTime(START_MIN); start.max=fmtTime(END_MIN); end.max=fmtTime(END_MIN);
+      let targetISO=dateEl.value; if(existing){ title.textContent='Edit booking'; start.value=existing.start; end.value=existing.end; label.value=existing.label||'Busy'; if(existing.__iso) targetISO=existing.__iso; }
+      cancelBtn.addEventListener('click',()=>document.body.removeChild(back));
+      saveBtn.addEventListener('click',()=>{
+        let s=toMin(start.value), e=toMin(end.value); s=snap30(s); e=snap30(e);
+        const L=(label.value||'Busy').trim();
+        if(e<=s) return alert('End time must be after start time.');
+        if(s<START_MIN||e>END_MIN) return alert('Time outside working range.');
+        const list=getList(roomEl.value,targetISO);
+        const conflict=list.some(b=>{const bs=toMin(b.start), be=toMin(b.end); return (!existing||b.id!==existing.id) && (s<be && bs<e);});
+        if(conflict) return alert('Time conflict: overlaps an existing booking.');
+        const S=fmtTime(s), E=fmtTime(e);
+        let updated; if(existing){ updated=list.map(b=>b.id===existing.id?{...b,start:S,end:E,label:L}:b); } else { updated=[...list,{id:uuid(),start:S,end:E,label:L}]; }
+        updated.sort((a,b)=>toMin(a.start)-toMin(b.start)); setList(roomEl.value,targetISO,updated); document.body.removeChild(back); render();
+      });
+      document.body.appendChild(back);
+    }
+
+    // ---------- INIT / NAV ----------
+    function populateRooms(){ roomEl.innerHTML=''; ROOMS.forEach(r=>{ const o=document.createElement('option'); o.value=r.id; o.textContent=r.name; roomEl.appendChild(o); }); roomEl.value=ROOMS[0].id; }
+    dateEl.value=todayISO(); populateRooms();
+    dateEl.addEventListener('change',render); roomEl.addEventListener('change',render);
+    dayBtn.addEventListener('click',()=>{ dayBtn.classList.add('active'); weekBtn.classList.remove('active'); render(); });
+    weekBtn.addEventListener('click',()=>{ weekBtn.classList.add('active'); dayBtn.classList.remove('active'); render(); });
+    prevBtn.addEventListener('click',()=>{ const d=weekBtn.classList.contains('active')?-7:-1; dateEl.value=addDaysISO(dateEl.value,d); render(); });
+    nextBtn.addEventListener('click',()=>{ const d=weekBtn.classList.contains('active')?+7:+1; dateEl.value=addDaysISO(dateEl.value,d); render(); });
+    todayBtn.addEventListener('click',()=>{ dateEl.value=todayISO(); render(); });
+    document.getElementById('newBtn').addEventListener('click',()=>openModal());
+
+    // first render
+    render();
   </script>
 </body>
 </html>
