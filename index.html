@@ -76,7 +76,7 @@
         <div class="title">Meeting Room Scheduler</div>
       </div>
       <div class="actions">
-        <button id="googleSignIn" class="secondary" title="Sign in with Google">Sign in with Google</button>
+        <button id="googleSignIn" class="secondary" title="Admin sign in">Admin sign in</button>
         <button id="googleSignOut" class="secondary" title="Sign out" style="display:none">Sign out</button>
       </div>
     </div>
@@ -377,16 +377,21 @@
     els.reserveSelected.addEventListener('click', reserveSelected);
     els.releaseSelected.addEventListener('click', releaseSelected);
 
-    // Google sign-in/out
+    // Google sign-in/out (try popup; if blocked, fall back to redirect)
     const provider = new firebase.auth.GoogleAuthProvider();
-    els.googleSignIn.addEventListener('click', async () => {
+    els.googleSignIn.addEventListener('click', async (e) => {
+      e.preventDefault();
       try {
         await auth.signInWithPopup(provider);
-      } catch (e) {
-        alert('Google sign-in failed: ' + (e?.message || e));
+      } catch (err) {
+        console.warn('Popup blocked or failed, trying redirect...', err);
+        try { await auth.signInWithRedirect(provider); } catch (e2) { alert('Google sign-in failed: ' + (e2?.message || e2)); }
       }
     });
-    els.googleSignOut.addEventListener('click', async () => {
+    els.googleSignOut.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try { await auth.signOut(); } catch (e3) { alert('Sign out failed: ' + (e3?.message || e3)); }
+    });('click', async () => {
       try { await auth.signOut(); } catch (e) { alert('Sign out failed: ' + (e?.message || e)); }
     });
 
@@ -426,8 +431,9 @@
       host.innerHTML = `<table style='width:100%;border-collapse:collapse'><thead><tr><th style='text-align:left;padding:8px;border-bottom:1px solid var(--border)'>Time</th><th style='text-align:left;padding:8px;border-bottom:1px solid var(--border)'>Booked by</th></tr></thead><tbody>${rows}</tbody></table>`;
     }
 
-    // Initial grid render
-    refreshGrid();
+    // Initial grid render (also on DOM ready)
+    function domReady(fn){ document.readyState!=='loading' ? fn() : document.addEventListener('DOMContentLoaded', fn); }
+    domReady(refreshGrid);
 
     // Optional: keep displayName in localStorage
     els.displayName.value = localStorage.getItem('mr_display_name') || '';
