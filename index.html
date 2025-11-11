@@ -1,281 +1,360 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Seattle District Meeting Room Scheduler</title>
+  <title>Meeting Room Scheduler (Firebase)</title>
   <style>
-    :root {
-      --bg:#f8fafc; --fg:#0f172a; --muted:#64748b; --card:#ffffff; --line:#e2e8f0; --accent:#0ea5e9;
-      --header-h:32px; --slot-h:40px;
-    }
-    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-    body{margin:0;background:var(--bg);color:var(--fg)}
-    .container{max-width:1200px;margin:0 auto;padding:24px}
-    .toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap}
-    .controls{display:flex;gap:8px;flex-wrap:wrap}
-    input,select,button,label{font-size:14px}
-    input[type=date],select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff}
-    button{border:0;border-radius:16px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.06);padding:8px 12px;cursor:pointer}
-    button:hover{box-shadow:0 3px 10px rgba(0,0,0,.08)}
+    :root { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+    body { margin: 0; padding: 24px; background: #f7f7fb; color: #111827; }
+    .container { max-width: 980px; margin: 0 auto; }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 18px rgba(0,0,0,.06); padding: 16px; }
+    .row { display: grid; gap: 12px; grid-template-columns: repeat(12, 1fr); align-items: center; }
+    label { font-size: 14px; color: #374151; }
+    input, select, button { font-size: 14px; padding: 10px 12px; border-radius: 10px; border: 1px solid #d1d5db; background: white; }
+    button { cursor: pointer; border: 0; background: #111827; color: white; }
+    button.secondary { background: #e5e7eb; color: #111827; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
 
-    .segmented{display:inline-flex;border:1px solid var(--line);border-radius:12px;overflow:hidden}
-    .segmented button{box-shadow:none;border-radius:0;background:#fff}
-    .segmented button.active{background:#0f172a;color:#fff}
+    .toolbar { display: flex; gap: 12px; flex-wrap: wrap; }
 
-    /* DAY GRID */
-    .grid{display:grid;grid-template-columns:90px 1fr;gap:12px}
-    .times{padding-top:var(--header-h);position:relative}
-    .time{height:var(--slot-h);font-size:12px;color:var(--muted);display:flex;align-items:flex-start;justify-content:flex-end;padding-right:8px}
-    .board{position:relative;background:var(--card);border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:12px}
-    #dayLabel{height:var(--header-h);display:flex;align-items:center;margin:0 6px 8px 6px}
-    .tracks{position:relative}
-    .row{position:absolute;left:0;right:0;border-top:1px dashed #eef2f7}
-    .row.hour{border-top:2px solid var(--line)}
-    .booking{position:absolute;background:#dbeafe;border:1px solid #93c5fd;color:#0c4a6e;border-radius:12px;padding:8px 10px;font-size:13px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
-    .booking .meta{font-size:12px;color:#075985}
+    .grid { margin-top: 16px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+    .slot { padding: 10px; border-radius: 12px; border: 1px solid #e5e7eb; background: white; display:flex; flex-direction:column; gap:6px; }
+    .slot-time { font-weight: 600; }
+    .slot.free { border-color: #d1fae5; background: #ecfdf5; }
+    .slot.busy { border-color: #fee2e2; background: #fef2f2; }
+    .slot .meta { font-size: 12px; color: #6b7280; }
 
-    /* WEEK GRID */
-    .weekgrid{display:grid;grid-template-columns:90px repeat(7, 1fr);gap:12px}
-    .dayHeader{height:var(--header-h);display:flex;align-items:center;justify-content:center;font-weight:600;color:#0f172a}
-    .weekBoard{position:relative;background:var(--card);border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:12px;grid-column:2 / -1}
-    .weekTracks{position:relative}
-    .vcol{position:absolute;top:0;bottom:0;border-left:1px dashed #eef2f7}
-    .bookingWeek{position:absolute;background:#e9d5ff;border:1px solid #c084fc;color:#5b21b6;border-radius:12px;padding:6px 8px;font-size:12px}
-
-    /* Modal */
-    .backdrop{position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.45);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px}
-    .modal{background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.2);width:100%;max-width:420px;padding:18px;animation:pop .15s ease-out}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .field{display:flex;flex-direction:column;gap:6px}
-    .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
-    @keyframes pop{from{transform:scale(.98);opacity:.6}to{transform:scale(1);opacity:1}}
+    .footer { font-size: 12px; color: #6b7280; margin-top: 12px; }
+    .notice { background:#fff7ed; border:1px solid #fed7aa; color:#7c2d12; padding:10px 12px; border-radius:10px; }
+    .muted { color:#6b7280; }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="toolbar">
-      <h1 style="margin:0;font-size:22px;font-weight:600">Seattle District Meeting Room Scheduler</h1>
-      <div class="controls">
-        <input id="date" type="date" />
-        <select id="room" aria-label="Select room"></select>
-        <div class="segmented" role="tablist" aria-label="View switch">
-          <button id="dayBtn" class="active" aria-pressed="true">Day</button>
-          <button id="weekBtn" aria-pressed="false">Week</button>
+    <h1>Meeting Room Scheduler (Firebase)</h1>
+    <p class="muted">Real‑time, conflict‑safe reservations using Firebase Authentication + Firestore transactions.</p>
+
+    <div class="card" id="setup">
+      <div class="notice" style="margin-bottom:12px">
+        <strong>1) Configuration needed:</strong> Replace the <code>firebaseConfig</code> object below with your own keys from the Firebase Console (Project Settings ▶ General ▶ SDK setup and configuration).<br/>
+        <strong>2) Security rules:</strong> Copy the Firestore security rules from the comment block near the end of this file into Firebase Console ▶ Firestore Database ▶ Rules.
+      </div>
+
+      <div class="toolbar">
+        <div>
+          <label>Room</label><br />
+          <select id="room">
+            <option value="room-a">Room A</option>
+            <option value="room-b">Room B</option>
+            <option value="room-c">Room C</option>
+          </select>
         </div>
-        <button id="prevBtn" title="Previous">◀</button>
-        <button id="todayBtn">Today</button>
-        <button id="nextBtn" title="Next">▶</button>
-        <button id="newBtn">+ New booking</button>
+        <div>
+          <label>Date</label><br />
+          <input id="date" type="date" />
+        </div>
+        <div>
+          <label>Slot length</label><br />
+          <select id="slotLength">
+            <option value="30">30 min</option>
+            <option value="60">60 min</option>
+          </select>
+        </div>
+        <div>
+          <label>Your display name</label><br />
+          <input id="displayName" type="text" placeholder="ex. Peter Wu" />
+        </div>
+        <div>
+          <label>&nbsp;</label><br />
+          <button id="refresh">Refresh</button>
+        </div>
       </div>
+
+      <div class="footer" id="authInfo">Signing in…</div>
     </div>
 
-    <!-- DAY VIEW -->
-    <div id="dayView" class="grid" aria-hidden="false">
-      <div class="times" id="times"></div>
-      <div class="board">
-        <div id="dayLabel" class="muted"></div>
-        <div class="tracks" id="tracks"></div>
+    <div class="card" style="margin-top:16px">
+      <div class="toolbar">
+        <button id="reserveSelected">Reserve selected</button>
+        <button class="secondary" id="releaseSelected">Release mine</button>
       </div>
+      <div id="grid" class="grid"></div>
     </div>
 
-    <!-- WEEK VIEW -->
-    <div id="weekView" class="weekgrid" style="display:none" aria-hidden="true">
-      <div></div>
-      <div id="weekHeaders" class="dayHeader" style="grid-column: 2 / -1; display:grid; grid-template-columns: repeat(7, 1fr); gap:12px"></div>
-      <div class="times" id="timesW"></div>
-      <div class="weekBoard">
-        <div id="weekTracks" class="weekTracks"></div>
-      </div>
-    </div>
+    <p class="footer">Changes appear in real time on all devices. If two people click the same free slot simultaneously, a Firestore <em>transaction</em> ensures only the first write succeeds.</p>
   </div>
 
-  <!-- Modal -->
-  <template id="modalTpl">
-    <div class="backdrop">
-      <div class="modal">
-        <h2 id="modalTitle" style="margin:0 0 8px 0;font-size:18px;font-weight:600">New booking</h2>
-        <div class="grid2">
-          <div class="field">
-            <label class="muted" style="margin:0">Start</label>
-            <input id="start" type="time" step="1800" />
-          </div>
-          <div class="field">
-            <label class="muted" style="margin:0">End</label>
-            <input id="end" type="time" step="1800" />
-          </div>
-          <div class="field" style="grid-column:1/ -1">
-            <label class="muted" style="margin:0">Notes</label>
-            <input id="label" type="text" placeholder="" />
-          </div>
-        </div>
-        <div class="actions">
-          <button id="cancelBtn">Cancel</button>
-          <button id="saveBtn" style="background:black;color:#fff">Save</button>
-        </div>
-      </div>
-    </div>
-  </template>
+  <!-- Firebase v10+ Modular SDKs from CDN -->
+  <script type="module">
+    // =============================
+    // 1) Firebase configuration
+    // =============================
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInAnonymously, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+    import { getFirestore, collection, doc, query, where, onSnapshot, orderBy, runTransaction, serverTimestamp, getDocs, deleteDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
 
-  <script>
-    // ---------------- CONFIG ----------------
-    const ROOMS = [
-      { id: 'everett', name: 'Everett' },
-      { id: 'tukwila', name: 'Tukwila' },
-      { id: 'n_kent', name: 'N Kent' },
-      { id: 's_kent', name: 'S Kent' },
-    ];
-    const SLOT_MINUTES = 30;           // 30-min resolution
-    const START_MIN    = 7*60;         // 07:00
-    const END_MIN      = 22*60 + 30;   // 22:30
-    const TOTAL_RANGE  = END_MIN - START_MIN;
-    const SLOT_PX      = 40;           // pixels for each 30-min slot (visual height)
+    const firebaseConfig = {
+  apiKey: "AIzaSyA_YLnbdGKh1k-_CQfAqgiq4IxnwItcTxg",
+  authDomain: "meetingroomscheduler-e5600.firebaseapp.com",
+  projectId: "meetingroomscheduler-e5600",
+  storageBucket: "meetingroomscheduler-e5600.firebasestorage.app",
+  messagingSenderId: "493825332105",
+  appId: "1:493825332105:web:836ce32a23ea36f0c54758",
+  measurementId: "G-C08DZKQ4VL"
+};
 
-    // ---------------- ELEMENTS ----------------
-    const dateEl = document.getElementById('date');
-    const roomEl = document.getElementById('room');
-    const tracksEl = document.getElementById('tracks');
-    const timesEl  = document.getElementById('times');
-    const dayLabel = document.getElementById('dayLabel');
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
 
-    const weekView = document.getElementById('weekView');
-    const dayView  = document.getElementById('dayView');
-    const weekHeaders = document.getElementById('weekHeaders');
-    const weekTracks  = document.getElementById('weekTracks');
-    const timesW      = document.getElementById('timesW');
+    const els = {
+      room: document.getElementById('room'),
+      date: document.getElementById('date'),
+      slotLength: document.getElementById('slotLength'),
+      displayName: document.getElementById('displayName'),
+      refresh: document.getElementById('refresh'),
+      grid: document.getElementById('grid'),
+      reserveSelected: document.getElementById('reserveSelected'),
+      releaseSelected: document.getElementById('releaseSelected'),
+      authInfo: document.getElementById('authInfo')
+    };
 
-    const dayBtn = document.getElementById('dayBtn');
-    const weekBtn = document.getElementById('weekBtn');
-    const prevBtn = document.getElementById('prevBtn');
-    const nextBtn = document.getElementById('nextBtn');
-    const todayBtn = document.getElementById('todayBtn');
+    // Default date = today (local)
+    const todayISO = new Date().toISOString().slice(0,10);
+    els.date.value = todayISO;
 
-    // ---------------- HELPERS ----------------
-    const fmtDay = new Intl.DateTimeFormat(undefined, { year:'numeric', month:'short', day:'2-digit', weekday:'short' });
-    const fmtDow = new Intl.DateTimeFormat(undefined, { month:'short', day:'2-digit', weekday:'short' });
-    const fmtTime = m => {
-  	let h = Math.floor(m / 60);
-  	const mm = String(m % 60).padStart(2, '0');
-  	const ampm = h >= 12 ? 'PM' : 'AM';
-  	h = h % 12;
-  	if (h === 0) h = 12; // handle midnight/noon edge cases
-  	return `${h}:${mm} ${ampm}`;};
-    function toMin(t) {
-  	const m = t.trim().match(/^(\d{1,2}):(\d{2})(?:\s*([AP]M))?$/i);
-  	if (!m) return NaN;
-  	let h = parseInt(m[1], 10),
-      		min = parseInt(m[2], 10);
-  	const ap = m[3]?.toUpperCase();
-  	if (ap) {
-    		if (ap === 'PM' && h < 12) h += 12;
-    		if (ap === 'AM' && h === 12) h = 0;
-  	}
-  	return h * 60 + min;};
-    const snap30 = m => Math.round(m / 30) * 30; // snap to 30-minute increments
-    const pctFromMin = m => ((m-START_MIN)/TOTAL_RANGE)*100;
-    const heightPct = (s,e) => ((e-s)/TOTAL_RANGE)*100;
-    const todayISO = ()=>{ const d=new Date(); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); };
-    const addDaysISO=(iso,n)=>{ const d=new Date(iso); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
-    const startOfWeekISO=(iso)=>{ const d=new Date(iso); const dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow); return d.toISOString().slice(0,10); };
+    // Anonymous auth (simple) — you can swap to SSO later
+    signInAnonymously(auth).catch(console.error);
 
-    const storageKey = (room,iso)=>`${room}::${iso}`;
-    const getAll=()=>{ const raw=localStorage.getItem('roomScheduler.bookings'); return raw?JSON.parse(raw):{}; };
-    const setAll=(obj)=>localStorage.setItem('roomScheduler.bookings', JSON.stringify(obj));
-    const getList=(room,iso)=>getAll()[storageKey(room,iso)]||[];
-    const setList=(room,iso,list)=>{ const all=getAll(); all[storageKey(room,iso)]=list; setAll(all); };
+    let currentUser = null;
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        currentUser = user;
+        els.authInfo.textContent = `Signed in as ${user.displayName || 'Guest'} (uid: ${user.uid.slice(0,6)}…)`;
+      } else {
+        els.authInfo.textContent = 'Not signed in';
+      }
+    });
 
-    // ---------------- RENDER ----------------
-    function renderTimes(container){
-      container.innerHTML='';
-      // build labels: bold on hour, blank on half-hour; align to hour lines
-      for(let m=START_MIN; m<=END_MIN; m+=60){
-        const hour=document.createElement('div'); hour.className='time'; hour.textContent=fmtTime(m); hour.style.fontWeight='600'; container.appendChild(hour);
-        const half=document.createElement('div'); half.className='time'; half.textContent=''; container.appendChild(half);
+    // -----------------------------
+    // Slot utilities
+    // -----------------------------
+    const START_HOUR = 8;  // 8am
+    const END_HOUR   = 18; // 6pm
+
+    function pad2(n){ return n.toString().padStart(2,'0'); }
+
+    function* generateSlots(lengthMin) {
+      for (let h=START_HOUR; h<END_HOUR; h++) {
+        for (let m=0; m<60; m+=lengthMin) {
+          const start = `${pad2(h)}:${pad2(m)}`;
+          let endMin = m + lengthMin;
+          let endH = h + Math.floor(endMin/60);
+          endMin = endMin % 60;
+          const end = `${pad2(endH)}:${pad2(endMin)}`;
+          yield { start, end, id: `${start}-${end}` };
+        }
       }
     }
 
-    function renderDay(){
-      dayLabel.textContent = fmtDay.format(new Date(dateEl.value));
-      tracksEl.innerHTML='';
-      // give the grid a real height based on slot count
-      tracksEl.style.height = `${(TOTAL_RANGE/SLOT_MINUTES)*SLOT_PX}px`;
-      // grid lines every 30 min (solid hour, dashed half)
-      for(let m=START_MIN, i=0; m<=END_MIN; m+=SLOT_MINUTES, i++){
-        const r=document.createElement('div'); r.className = (i%2===0? 'row hour':'row'); r.style.top=`${pctFromMin(m)}%`; tracksEl.appendChild(r);
-      }
-      // bookings
-      getList(roomEl.value, dateEl.value).forEach(b=>{
-        const s=toMin(b.start), e=toMin(b.end);
-        const el=document.createElement('div'); el.className='booking';
-        el.style.top=`${pctFromMin(s)}%`; el.style.left='8px'; el.style.right='8px'; el.style.height=`${heightPct(s,e)}%`;
-        el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="font-weight:600">${b.label||'Busy'}</div><div><button data-act="edit" data-id="${b.id}" style="background:transparent;color:#0369a1;text-decoration:underline;border:0;cursor:pointer;font-size:12px">Edit</button> <button data-act="del" data-id="${b.id}" style="background:transparent;color:#dc2626;text-decoration:underline;border:0;cursor:pointer;font-size:12px">Delete</button></div><div class="meta">${b.start} – ${b.end}</div>`;
-        el.addEventListener('click',(e)=>{ const act=e.target.getAttribute('data-act'); const id=e.target.getAttribute('data-id'); if(!act)return; const list=getList(roomEl.value,dateEl.value); if(act==='edit') openModal(list.find(x=>x.id===id)); if(act==='del'){ setList(roomEl.value,dateEl.value,list.filter(x=>x.id!==id)); render(); } e.stopPropagation(); });
-        tracksEl.appendChild(el);
-      });
+    function pathFor(roomId, dateISO) {
+      return {
+        dateDoc: doc(db, 'rooms', roomId, 'dates', dateISO),
+        slotsCol: collection(db, 'rooms', roomId, 'dates', dateISO, 'slots'),
+        slotDoc: (slotId) => doc(db, 'rooms', roomId, 'dates', dateISO, 'slots', slotId)
+      };
     }
 
-    function renderWeek(){
-      weekHeaders.innerHTML=''; weekTracks.innerHTML='';
-      const startISO=startOfWeekISO(dateEl.value);
-      const days=Array.from({length:7},(_,i)=>addDaysISO(startISO,i));
-      days.forEach(d=>{ const h=document.createElement('div'); h.className='dayHeader'; h.textContent=fmtDow.format(new Date(d)); weekHeaders.appendChild(h); });
-      weekTracks.style.height = `${(TOTAL_RANGE/SLOT_MINUTES)*SLOT_PX}px`;
-      for(let m=START_MIN, i=0; m<=END_MIN; m+=SLOT_MINUTES, i++){
-        const r=document.createElement('div'); r.className=(i%2===0?'row hour':'row'); r.style.top=`${pctFromMin(m)}%`; weekTracks.appendChild(r); }
-      days.forEach((iso,i)=>{ const v=document.createElement('div'); v.className='vcol'; v.style.left=`calc(${(i*(100/7))}%)`; weekTracks.appendChild(v); });
-      days.forEach((iso, i)=>{
-        getList(roomEl.value, iso).forEach(b=>{
-          const s=toMin(b.start), e=toMin(b.end); const colW=100/7; const el=document.createElement('div'); el.className='bookingWeek';
-          el.style.top=`${pctFromMin(s)}%`; el.style.left=`calc(${i*colW}% + 8px)`; el.style.width=`calc(${colW}% - 16px)`; el.style.height=`${heightPct(s,e)}%`;
-          el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><span style="font-weight:600">${b.label||'Busy'}</span><span style="font-size:11px">${b.start}–${b.end}</span></div>`;
-          el.addEventListener('click',()=>openModal({...b,__iso:iso}));
-          weekTracks.appendChild(el);
+    // -----------------------------
+    // Real-time grid rendering
+    // -----------------------------
+    let unsubscribe = null;
+
+    function renderGrid(roomId, dateISO, lengthMin) {
+      // Clear existing listener
+      if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+      els.grid.innerHTML = '';
+
+      // Prepare static slot cells
+      const map = new Map(); // id -> element
+      for (const slot of generateSlots(lengthMin)) {
+        const div = document.createElement('div');
+        div.className = 'slot free';
+        div.dataset.id = slot.id;
+        div.innerHTML = `
+          <div class="slot-time">${slot.start} – ${slot.end}</div>
+          <div class="meta">Free</div>
+          <label style="display:flex;gap:6px;align-items:center;margin-top:4px">
+            <input type="checkbox" class="sel" /> Select
+          </label>
+        `;
+        els.grid.appendChild(div);
+        map.set(slot.id, div);
+      }
+
+      const { slotsCol } = pathFor(roomId, dateISO);
+      const q = query(slotsCol, orderBy('start'));
+
+      unsubscribe = onSnapshot(q, (snap) => {
+        // Reset all to free first (in case slotLength changed)
+        for (const [, el] of map) {
+          el.classList.remove('busy');
+          el.classList.add('free');
+          el.querySelector('.meta').textContent = 'Free';
+        }
+
+        snap.forEach((docSnap) => {
+          const d = docSnap.data();
+          const el = map.get(docSnap.id);
+          if (!el) return; // different grid size
+          el.classList.remove('free');
+          el.classList.add('busy');
+          const by = d.displayName || (d.userId ? d.userId.slice(0,6) : '—');
+          el.querySelector('.meta').textContent = `Booked by ${by}`;
         });
       });
     }
 
-    function render(){
-      renderTimes(timesEl);
-      if(weekBtn.classList.contains('active')){ renderTimes(timesW); renderWeek(); dayView.style.display='none'; weekView.style.display='grid'; }
-      else{ renderDay(); weekView.style.display='none'; dayView.style.display='grid'; }
+    function getSelections() {
+      return Array.from(els.grid.querySelectorAll('.slot input.sel:checked')).map(chk => chk.closest('.slot').dataset.id);
     }
 
-    // ---------- MODAL / CRUD ----------
-    const uuid=()=>([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,c=>(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16));
-    function openModal(existing){
-      const tpl=document.getElementById('modalTpl'); const node=tpl.content.cloneNode(true); const back=node.querySelector('.backdrop');
-      const start=node.getElementById('start'); const end=node.getElementById('end'); const label=node.getElementById('label'); const saveBtn=node.getElementById('saveBtn'); const cancelBtn=node.getElementById('cancelBtn'); const title=node.getElementById('modalTitle');
-      start.value=fmtTime(START_MIN); end.value=fmtTime(START_MIN+60); label.value='Enter your name'; start.min=fmtTime(START_MIN); end.min=fmtTime(START_MIN); start.max=fmtTime(END_MIN); end.max=fmtTime(END_MIN);
-      let targetISO=dateEl.value; if(existing){ title.textContent='Edit booking'; start.value=existing.start; end.value=existing.end; label.value=existing.label||'Busy'; if(existing.__iso) targetISO=existing.__iso; }
-      cancelBtn.addEventListener('click',()=>document.body.removeChild(back));
-      saveBtn.addEventListener('click',()=>{
-        let s=toMin(start.value), e=toMin(end.value); s=snap30(s); e=snap30(e);
-        const L=(label.value||'Enter your name').trim();
-        if(e<=s) return alert('End time must be after start time.');
-        if(s<START_MIN||e>END_MIN) return alert('Time outside working range.');
-        const list=getList(roomEl.value,targetISO);
-        const conflict=list.some(b=>{const bs=toMin(b.start), be=toMin(b.end); return (!existing||b.id!==existing.id) && (s<be && bs<e);});
-        if(conflict) return alert('Time conflict: overlaps an existing booking.');
-        const S=fmtTime(s), E=fmtTime(e);
-        let updated; if(existing){ updated=list.map(b=>b.id===existing.id?{...b,start:S,end:E,label:L}:b); } else { updated=[...list,{id:uuid(),start:S,end:E,label:L}]; }
-        updated.sort((a,b)=>toMin(a.start)-toMin(b.start)); setList(roomEl.value,targetISO,updated); document.body.removeChild(back); render();
-      });
-      document.body.appendChild(back);
+    // -----------------------------
+    // Reserve selected (transactional, no-overwrite)
+    // -----------------------------
+    async function reserveSelected() {
+      const roomId = els.room.value;
+      const dateISO = els.date.value;
+      const lengthMin = parseInt(els.slotLength.value, 10);
+      const { slotDoc } = pathFor(roomId, dateISO);
+      const name = els.displayName.value.trim();
+
+      const selected = getSelections();
+      if (selected.length === 0) return alert('Select at least one free slot.');
+
+      try {
+        // Reserve each slot with an independent transaction
+        for (const sid of selected) {
+          await runTransaction(db, async (tx) => {
+            const ref = slotDoc(sid);
+            const snap = await tx.get(ref);
+            if (snap.exists()) {
+              throw new Error(`Slot ${sid} already booked`);
+            }
+            const [start, end] = sid.split('-');
+            tx.set(ref, {
+              start, end,
+              userId: currentUser?.uid || null,
+              displayName: name || null,
+              createdAt: serverTimestamp(),
+              lengthMin
+            });
+          });
+        }
+        // Clear selections
+        els.grid.querySelectorAll('.slot input.sel:checked').forEach(chk => (chk.checked = false));
+      } catch (err) {
+        alert(err.message);
+      }
     }
 
-    // ---------- INIT / NAV ----------
-    function populateRooms(){ roomEl.innerHTML=''; ROOMS.forEach(r=>{ const o=document.createElement('option'); o.value=r.id; o.textContent=r.name; roomEl.appendChild(o); }); roomEl.value=ROOMS[0].id; }
-    dateEl.value=todayISO(); populateRooms();
-    dateEl.addEventListener('change',render); roomEl.addEventListener('change',render);
-    dayBtn.addEventListener('click',()=>{ dayBtn.classList.add('active'); weekBtn.classList.remove('active'); render(); });
-    weekBtn.addEventListener('click',()=>{ weekBtn.classList.add('active'); dayBtn.classList.remove('active'); render(); });
-    prevBtn.addEventListener('click',()=>{ const d=weekBtn.classList.contains('active')?-7:-1; dateEl.value=addDaysISO(dateEl.value,d); render(); });
-    nextBtn.addEventListener('click',()=>{ const d=weekBtn.classList.contains('active')?+7:+1; dateEl.value=addDaysISO(dateEl.value,d); render(); });
-    todayBtn.addEventListener('click',()=>{ dateEl.value=todayISO(); render(); });
-    document.getElementById('newBtn').addEventListener('click',()=>openModal());
+    // -----------------------------
+    // Release selected (only if mine)
+    // -----------------------------
+    async function releaseSelected() {
+      const roomId = els.room.value;
+      const dateISO = els.date.value;
+      const { slotDoc } = pathFor(roomId, dateISO);
+      const selected = getSelections();
+      if (selected.length === 0) return alert('Select at least one booked slot to release.');
 
-    // first render
-    render();
+      try {
+        for (const sid of selected) {
+          await runTransaction(db, async (tx) => {
+            const ref = slotDoc(sid);
+            const snap = await tx.get(ref);
+            if (!snap.exists()) return; // already free
+            const data = snap.data();
+            if (data.userId !== currentUser?.uid) {
+              throw new Error(`You can only release your own reservation for slot ${sid}.`);
+            }
+            tx.delete(ref);
+          });
+        }
+        els.grid.querySelectorAll('.slot input.sel:checked').forEach(chk => (chk.checked = false));
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    // Event listeners
+    function refreshGrid(){
+      const roomId = els.room.value;
+      const dateISO = els.date.value;
+      const lengthMin = parseInt(els.slotLength.value, 10);
+      renderGrid(roomId, dateISO, lengthMin);
+    }
+
+    els.room.addEventListener('change', refreshGrid);
+    els.date.addEventListener('change', refreshGrid);
+    els.slotLength.addEventListener('change', refreshGrid);
+    els.refresh.addEventListener('click', refreshGrid);
+    els.reserveSelected.addEventListener('click', reserveSelected);
+    els.releaseSelected.addEventListener('click', releaseSelected);
+
+    // Initial render
+    refreshGrid();
+
+    // Optional: keep displayName in localStorage
+    els.displayName.value = localStorage.getItem('mr_display_name') || '';
+    els.displayName.addEventListener('change', () => localStorage.setItem('mr_display_name', els.displayName.value));
+
   </script>
+
+  <!-- =============================
+       Firestore Security Rules (copy into Firebase Console ▶ Firestore ▶ Rules)
+       These rules:
+       * Allow reads to authenticated users
+       * Allow slot create only if the slot does not already exist (prevents overwrite)
+       * Allow delete only by the original creator (matching userId)
+       * Block updates (no overwriting)
+     ============================= -->
+  <!--
+  rules_version = '2';
+  service cloud.firestore {
+    match /databases/{database}/documents {
+      function isAuthed() { return request.auth != null; }
+
+      match /rooms/{roomId}/dates/{dateISO}/slots/{slotId} {
+        allow read: if isAuthed();
+
+        allow create: if isAuthed() &&
+          !exists(/databases/$(database)/documents/rooms/$(roomId)/dates/$(dateISO)/slots/$(slotId)) &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.start is string &&
+          request.resource.data.end is string &&
+          request.resource.data.createdAt == request.time;
+
+        allow delete: if isAuthed() && resource.data.userId == request.auth.uid;
+        allow update: if false; // no overwriting
+      }
+
+      // Optional: allow listing rooms/dates documents for UI
+      match /rooms/{roomId} { allow read: if isAuthed(); }
+      match /rooms/{roomId}/dates/{dateISO} { allow read: if isAuthed(); }
+    }
+  }
+  -->
+
+  <!-- =============================
+       Deployment tips
+       1) Enable Authentication ▶ Sign-in method ▶ Anonymous (or any SSO you want)
+       2) Create Firestore in Production mode
+       3) Paste the Rules above
+       4) Host this file anywhere (GitHub Pages, Netlify, Vercel). Since it talks directly to Firestore, it works as a static site.
+       5) (Optional) Replace Anonymous with Google/Microsoft sign‑in so names/ownership are clearer.
+     ============================= -->
 </body>
 </html>
