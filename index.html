@@ -5,50 +5,88 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Meeting Room Scheduler (Firebase)</title>
   <style>
-    :root { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
-    body { margin: 0; padding: 24px; background: #f7f7fb; color: #111827; }
-    .container { max-width: 980px; margin: 0 auto; }
-    h1 { margin: 0 0 8px; font-size: 24px; }
-    .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 18px rgba(0,0,0,.06); padding: 16px; }
-    .row { display: grid; gap: 12px; grid-template-columns: repeat(12, 1fr); align-items: center; }
-    label { font-size: 14px; color: #374151; }
-    input, select, button { font-size: 14px; padding: 10px 12px; border-radius: 10px; border: 1px solid #d1d5db; background: white; }
-    button { cursor: pointer; border: 0; background: #111827; color: white; }
-    button.secondary { background: #e5e7eb; color: #111827; }
-    button:disabled { opacity: .5; cursor: not-allowed; }
+    :root {
+      --bg: #f7f7fb;
+      --text: #111827;
+      --card: #ffffff;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --ok-bg: #ecfdf5;
+      --ok-border: #d1fae5;
+      --busy-bg: #fef2f2;
+      --busy-border: #fee2e2;
+      --primary: #ffcc00;   /* Penske Yellow */
+      --primary-text: #003b5c; /* Penske Navy */
+      --btn-text: #111827;
+    }
+    .dark {
+      --bg: #0b1020;
+      --text: #e6e7ea;
+      --card: #121a2f;
+      --muted: #a7b0c0;
+      --border: #25304a;
+      --ok-bg: #0f2a21;
+      --ok-border: #1f4a3b;
+      --busy-bg: #2a1414;
+      --busy-border: #4a1f1f;
+      --primary: #ffcc00;
+      --primary-text: #ffcc00;
+      --btn-text: #0b1020;
+    }
 
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+    .container { max-width: 1100px; margin: 0 auto; }
+
+    /* Header */
+    .appbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; padding: 12px 16px; border-radius: 16px; background: var(--card); border: 1px solid var(--border); }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .logo { width: 110px; height: 28px; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; letter-spacing: .5px; background: var(--primary); color: var(--primary-text); border-radius: 6px; }
+    .title { font-size: 20px; font-weight: 700; }
+    .actions { display: flex; gap: 10px; align-items: center; }
+
+    /* Cards & controls */
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 4px 18px rgba(0,0,0,.04); padding: 16px; }
+    .row { display: grid; gap: 12px; grid-template-columns: repeat(12, 1fr); align-items: center; }
+    label { font-size: 13px; color: var(--muted); }
+    input, select, button { font-size: 14px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); }
+    button { cursor: pointer; border: 0; background: var(--primary); color: var(--btn-text); font-weight: 700; }
+    button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
     .toolbar { display: flex; gap: 12px; flex-wrap: wrap; }
 
+    /* Grid */
     .grid { margin-top: 16px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
-    .slot { padding: 10px; border-radius: 12px; border: 1px solid #e5e7eb; background: white; display:flex; flex-direction:column; gap:6px; }
-    .slot-time { font-weight: 600; }
-    .slot.free { border-color: #d1fae5; background: #ecfdf5; }
-    .slot.busy { border-color: #fee2e2; background: #fef2f2; }
-    .slot .meta { font-size: 12px; color: #6b7280; }
+    @media (max-width: 900px){ .grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 560px){ .grid { grid-template-columns: repeat(2, 1fr); } }
+    .slot { padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--card); display:flex; flex-direction:column; gap:6px; }
+    .slot-time { font-weight: 700; }
+    .slot.free { border-color: var(--ok-border); background: var(--ok-bg); }
+    .slot.busy { border-color: var(--busy-border); background: var(--busy-bg); }
+    .slot .meta { font-size: 12px; color: var(--muted); }
 
-    .footer { font-size: 12px; color: #6b7280; margin-top: 12px; }
-    .notice { background:#fff7ed; border:1px solid #fed7aa; color:#7c2d12; padding:10px 12px; border-radius:10px; }
-    .muted { color:#6b7280; }
+    .footer { font-size: 12px; color: var(--muted); margin-top: 12px; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Meeting Room Scheduler (Firebase)</h1>
-    <p class="muted">Real‑time, conflict‑safe reservations using Firebase Authentication + Firestore transactions.</p>
+    <div class="appbar">
+      <div class="brand">
+        <div class="logo">PENSKE</div>
+        <div class="title">Meeting Room Scheduler</div>
+      </div>
+      <div class="actions"></div>
+    </div>
 
     <div class="card" id="setup">
-      <div class="notice" style="margin-bottom:12px">
-        <strong>1) Configuration needed:</strong> Replace the <code>firebaseConfig</code> object below with your own keys from the Firebase Console (Project Settings ▶ General ▶ SDK setup and configuration).<br/>
-        <strong>2) Security rules:</strong> Copy the Firestore security rules from the comment block near the end of this file into Firebase Console ▶ Firestore Database ▶ Rules.
-      </div>
-
       <div class="toolbar">
         <div>
           <label>Room</label><br />
           <select id="room">
-            <option value="room-a">Room A</option>
-            <option value="room-b">Room B</option>
-            <option value="room-c">Room C</option>
+            <option value="tukwila">Tukwila</option>
+            <option value="everett">Everett</option>
+            <option value="n-kent">N Kent</option>
+            <option value="s-kent">S Kent</option>
           </select>
         </div>
         <div>
@@ -64,7 +102,7 @@
         </div>
         <div>
           <label>Your display name</label><br />
-          <input id="displayName" type="text" placeholder="ex. Peter Wu" />
+          <input id="displayName" type="text" placeholder="Enter your name" />
         </div>
         <div>
           <label>&nbsp;</label><br />
@@ -81,6 +119,15 @@
         <button class="secondary" id="releaseSelected">Release mine</button>
       </div>
       <div id="grid" class="grid"></div>
+    </div>
+
+    <!-- Admin Dashboard: read-only list of bookings for this date/room -->
+    <div class="card" style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong>Bookings (read-only)</strong>
+        <button id="exportCsv" class="secondary">Export CSV</button>
+      </div>
+      <div id="adminList" class="footer">No bookings yet.</div>
     </div>
 
     <p class="footer">Changes appear in real time on all devices. If two people click the same free slot simultaneously, a Firestore <em>transaction</em> ensures only the first write succeeds.</p>
@@ -126,15 +173,26 @@
     els.date.value = todayISO;
 
     // Anonymous auth (simple) — you can swap to SSO later
-    signInAnonymously(auth).catch(console.error);
+    signInAnonymously(auth).catch((e) => {
+      console.error('Auth error:', e);
+      els.authInfo.textContent = 'Sign-in failed: ' + (e?.message || e);
+    });
 
     let currentUser = null;
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         currentUser = user;
         els.authInfo.textContent = `Signed in as ${user.displayName || 'Guest'} (uid: ${user.uid.slice(0,6)}…)`;
+        // Enable controls and render after auth
+        els.reserveSelected.disabled = false;
+        els.releaseSelected.disabled = false;
+        els.refresh.disabled = false;
+        refreshGrid();
       } else {
         els.authInfo.textContent = 'Not signed in';
+        els.reserveSelected.disabled = true;
+        els.releaseSelected.disabled = true;
+        els.refresh.disabled = true;
       }
     });
 
@@ -205,6 +263,7 @@
           el.querySelector('.meta').textContent = 'Free';
         }
 
+        const bookings = [];
         snap.forEach((docSnap) => {
           const d = docSnap.data();
           const el = map.get(docSnap.id);
@@ -213,7 +272,16 @@
           el.classList.add('busy');
           const by = d.displayName || (d.userId ? d.userId.slice(0,6) : '—');
           el.querySelector('.meta').textContent = `Booked by ${by}`;
+          bookings.push({ id: docSnap.id, start: d.start, end: d.end, by });
         });
+        renderAdminList(bookings);
+      }, (err) => {
+        console.error('Firestore listener error:', err);
+        document.getElementById('adminList').textContent = 'Error loading bookings: ' + (err?.message || err);
+      });
+        });
+        renderAdminList(bookings);
+      });
       });
     }
 
@@ -227,7 +295,7 @@
     async function reserveSelected() {
       const roomId = els.room.value;
       const dateISO = els.date.value;
-      const lengthMin = parseInt(els.slotLength.value, 10);
+      const lengthMin = parseInt(els.slotLength.value, 10) || 30;
       const { slotDoc } = pathFor(roomId, dateISO);
       const name = els.displayName.value.trim();
 
@@ -293,7 +361,7 @@
     function refreshGrid(){
       const roomId = els.room.value;
       const dateISO = els.date.value;
-      const lengthMin = parseInt(els.slotLength.value, 10);
+      const lengthMin = parseInt(els.slotLength.value, 10) || 30;
       renderGrid(roomId, dateISO, lengthMin);
     }
 
@@ -304,7 +372,38 @@
     els.reserveSelected.addEventListener('click', reserveSelected);
     els.releaseSelected.addEventListener('click', releaseSelected);
 
-    // Initial render
+    // Admin list renderer & CSV export
+    function renderAdminList(items){
+      const host = document.getElementById('adminList');
+      if (!items || items.length === 0) { host.textContent = 'No bookings yet.'; return; }
+      const rows = items
+        .sort((a,b)=> a.start.localeCompare(b.start))
+        .map(x=>`<tr><td style='padding:8px;border-bottom:1px solid var(--border)'>${x.start}–${x.end}</td><td style='padding:8px;border-bottom:1px solid var(--border)'>${x.by}</td></tr>`) 
+        .join('');
+      host.innerHTML = `<table style='width:100%;border-collapse:collapse'><thead><tr><th style='text-align:left;padding:8px;border-bottom:1px solid var(--border)'>Time</th><th style='text-align:left;padding:8px;border-bottom:1px solid var(--border)'>Booked by</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    document.getElementById('exportCsv').addEventListener('click', () => {
+      const table = document.querySelector('#adminList table tbody');
+      const dateISO = els.date.value; const roomId = els.room.options[els.room.selectedIndex].text;
+      if (!table) return alert('No bookings to export.');
+      const data = [['Room','Date','Time','Booked by']];
+      for (const tr of table.querySelectorAll('tr')) {
+        const t = tr.children[0].textContent.trim();
+        const by = tr.children[1].textContent.trim();
+        data.push([roomId, dateISO, t, by]);
+      }
+      const csv = data.map(r => r.map(v => '"'+v.replace(/"/g,'""')+'"').join(',')).join('
+');
+      const blob = new Blob([csv], {type:'text/csv'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `bookings_${roomId}_${dateISO}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    // Initial render now (grid only). Firestore listener may error until auth is ready.
     refreshGrid();
 
     // Optional: keep displayName in localStorage
