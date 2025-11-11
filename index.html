@@ -75,7 +75,10 @@
         <div class="logo">PENSKE</div>
         <div class="title">Meeting Room Scheduler</div>
       </div>
-      <div class="actions"></div>
+      <div class="actions">
+        <button id="googleSignIn" class="secondary" title="Sign in with Google">Sign in with Google</button>
+        <button id="googleSignOut" class="secondary" title="Sign out" style="display:none">Sign out</button>
+      </div>
     </div>
 
     <div class="card" id="setup">
@@ -117,6 +120,7 @@
       <div class="toolbar">
         <button id="reserveSelected">Reserve selected</button>
         <button class="secondary" id="releaseSelected">Release mine</button>
+        <button class="secondary" id="adminDeleteSelected" style="display:none">Release (admin)</button>
       </div>
       <div id="grid" class="grid"></div>
     </div>
@@ -164,28 +168,55 @@
       grid: document.getElementById('grid'),
       reserveSelected: document.getElementById('reserveSelected'),
       releaseSelected: document.getElementById('releaseSelected'),
-      authInfo: document.getElementById('authInfo')
+      adminDeleteSelected: document.getElementById('adminDeleteSelected'),
+      authInfo: document.getElementById('authInfo'),
+      googleSignIn: document.getElementById('googleSignIn'),
+      googleSignOut: document.getElementById('googleSignOut')
     };
 
     // Default date = today (local)
     const todayISO = new Date().toISOString().slice(0,10);
     els.date.value = els.date.value || todayISO;
 
-    // Anonymous auth (simple)
+    // Sign-in helpers (Google + optional Anonymous fallback)
+    const ADMIN_UIDS = [
+      // TODO: paste your Google UID here once you sign in and copy it from Firebase Console → Authentication → Users
+      // "YOUR_GOOGLE_UID_HERE"
+    ];
+
+    function isAdmin(uid){ return ADMIN_UIDS.includes(uid); }
+
+    // Optional anonymous sign-in (still enabled so guests can book)
     auth.signInAnonymously().catch((e) => {
-      console.error('Auth error:', e);
+      console.error('Anonymous auth error:', e);
+    });
       els.authInfo.textContent = 'Sign-in failed: ' + (e?.message || e);
     });
 
     let currentUser = null;
     auth.onAuthStateChanged(async (user) => {
       if (user) {
-        currentUser = user;
-        els.authInfo.textContent = `Signed in as ${user.displayName || 'Guest'} (uid: ${user.uid.slice(0,6)}…)`;
+        const name = user.displayName || 'Guest';
+        const mail = user.email ? ` <${user.email}>` : '';
+        els.authInfo.textContent = `Signed in as ${name}${mail} (uid: ${user.uid.slice(0,6)}…)`;
         els.reserveSelected.disabled = false;
         els.releaseSelected.disabled = false;
         els.refresh.disabled = false;
+        els.googleSignIn.style.display = 'none';
+        els.googleSignOut.style.display = 'inline-block';
+        // Admin button visibility
+        els.adminDeleteSelected.style.display = isAdmin(user.uid) ? 'inline-block' : 'none';
         refreshGrid();
+      } else {
+        els.authInfo.textContent = 'Not signed in';
+        els.reserveSelected.disabled = true;
+        els.releaseSelected.disabled = true;
+        els.refresh.disabled = true;
+        els.googleSignIn.style.display = 'inline-block';
+        els.googleSignOut.style.display = 'none';
+        els.adminDeleteSelected.style.display = 'none';
+      }
+    });
       } else {
         els.authInfo.textContent = 'Not signed in';
         els.reserveSelected.disabled = true;
@@ -345,6 +376,44 @@
     els.refresh.addEventListener('click', refreshGrid);
     els.reserveSelected.addEventListener('click', reserveSelected);
     els.releaseSelected.addEventListener('click', releaseSelected);
+
+    // Google sign-in/out
+    const provider = new firebase.auth.GoogleAuthProvider();
+    els.googleSignIn.addEventListener('click', async () => {
+      try {
+        await auth.signInWithPopup(provider);
+      } catch (e) {
+        alert('Google sign-in failed: ' + (e?.message || e));
+      }
+    });
+    els.googleSignOut.addEventListener('click', async () => {
+      try { await auth.signOut(); } catch (e) { alert('Sign out failed: ' + (e?.message || e)); }
+    });
+
+    // Admin delete (force delete regardless of owner) — requires rules to allow admin UID
+    async function adminDeleteSelected(){
+      const user = auth.currentUser;
+      if (!user || !isAdmin(user.uid)) return alert('Admin only');
+      const roomId = els.room.value;
+      const dateISO = els.date.value;
+      const { slotDoc } = pathFor(roomId, dateISO);
+      const selected = getSelections();
+      if (selected.length === 0) return alert('Select at least one booked slot to release.');
+      try {
+        for (const sid of selected) {
+          await db.runTransaction(async (tx) => {
+            const ref = slotDoc(sid);
+            const snap = await tx.get(ref);
+            if (!snap.exists) return; // already free
+            tx.delete(ref);
+          });
+        }
+        els.grid.querySelectorAll('.slot input.sel:checked').forEach(chk => (chk.checked = false));
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+    els.adminDeleteSelected.addEventListener('click', adminDeleteSelected);
 
     // Admin list renderer & CSV export
     function renderAdminList(items){
