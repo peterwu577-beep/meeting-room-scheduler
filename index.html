@@ -134,14 +134,13 @@
   </div>
 
   <!-- Firebase v10+ Modular SDKs from CDN -->
-  <script type="module">
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
+  <script>
     // =============================
-    // 1) Firebase configuration
+    // Firebase configuration (already filled)
     // =============================
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signInAnonymously, updateProfile } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-    import { getFirestore, collection, doc, query, where, onSnapshot, orderBy, runTransaction, serverTimestamp, getDocs, deleteDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-
     const firebaseConfig = {
   apiKey: "AIzaSyA_YLnbdGKh1k-_CQfAqgiq4IxnwItcTxg",
   authDomain: "meetingroomscheduler-e5600.firebaseapp.com",
@@ -152,9 +151,9 @@
   measurementId: "G-C08DZKQ4VL"
 };
 
-    const app  = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db   = getFirestore(app);
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db   = firebase.firestore();
 
     const els = {
       room: document.getElementById('room'),
@@ -170,20 +169,19 @@
 
     // Default date = today (local)
     const todayISO = new Date().toISOString().slice(0,10);
-    els.date.value = todayISO;
+    els.date.value = els.date.value || todayISO;
 
-    // Anonymous auth (simple) — you can swap to SSO later
-    signInAnonymously(auth).catch((e) => {
+    // Anonymous auth (simple)
+    auth.signInAnonymously().catch((e) => {
       console.error('Auth error:', e);
       els.authInfo.textContent = 'Sign-in failed: ' + (e?.message || e);
     });
 
     let currentUser = null;
-    onAuthStateChanged(auth, async (user) => {
+    auth.onAuthStateChanged(async (user) => {
       if (user) {
         currentUser = user;
         els.authInfo.textContent = `Signed in as ${user.displayName || 'Guest'} (uid: ${user.uid.slice(0,6)}…)`;
-        // Enable controls and render after auth
         els.reserveSelected.disabled = false;
         els.releaseSelected.disabled = false;
         els.refresh.disabled = false;
@@ -196,9 +194,6 @@
       }
     });
 
-    // -----------------------------
-    // Slot utilities
-    // -----------------------------
     const START_HOUR = 8;  // 8am
     const END_HOUR   = 18; // 6pm
 
@@ -219,15 +214,11 @@
 
     function pathFor(roomId, dateISO) {
       return {
-        dateDoc: doc(db, 'rooms', roomId, 'dates', dateISO),
-        slotsCol: collection(db, 'rooms', roomId, 'dates', dateISO, 'slots'),
-        slotDoc: (slotId) => doc(db, 'rooms', roomId, 'dates', dateISO, 'slots', slotId)
+        slotsCol: db.collection('rooms').doc(roomId).collection('dates').doc(dateISO).collection('slots'),
+        slotDoc: (slotId) => db.collection('rooms').doc(roomId).collection('dates').doc(dateISO).collection('slots').doc(slotId)
       };
     }
 
-    // -----------------------------
-    // Real-time grid rendering
-    // -----------------------------
     let unsubscribe = null;
 
     function renderGrid(roomId, dateISO, lengthMin) {
@@ -253,21 +244,17 @@
       }
 
       const { slotsCol } = pathFor(roomId, dateISO);
-      const q = query(slotsCol, orderBy('start'));
-
-      unsubscribe = onSnapshot(q, (snap) => {
-        // Reset all to free first (in case slotLength changed)
+      unsubscribe = slotsCol.orderBy('start').onSnapshot((snap) => {
         for (const [, el] of map) {
           el.classList.remove('busy');
           el.classList.add('free');
           el.querySelector('.meta').textContent = 'Free';
         }
-
         const bookings = [];
         snap.forEach((docSnap) => {
           const d = docSnap.data();
           const el = map.get(docSnap.id);
-          if (!el) return; // different grid size
+          if (!el) return;
           el.classList.remove('free');
           el.classList.add('busy');
           const by = d.displayName || (d.userId ? d.userId.slice(0,6) : '—');
@@ -279,19 +266,12 @@
         console.error('Firestore listener error:', err);
         document.getElementById('adminList').textContent = 'Error loading bookings: ' + (err?.message || err);
       });
-        });
-        renderAdminList(bookings);
-      });
-      });
     }
 
     function getSelections() {
       return Array.from(els.grid.querySelectorAll('.slot input.sel:checked')).map(chk => chk.closest('.slot').dataset.id);
     }
 
-    // -----------------------------
-    // Reserve selected (transactional, no-overwrite)
-    // -----------------------------
     async function reserveSelected() {
       const roomId = els.room.value;
       const dateISO = els.date.value;
@@ -303,34 +283,29 @@
       if (selected.length === 0) return alert('Select at least one free slot.');
 
       try {
-        // Reserve each slot with an independent transaction
         for (const sid of selected) {
-          await runTransaction(db, async (tx) => {
+          await db.runTransaction(async (tx) => {
             const ref = slotDoc(sid);
             const snap = await tx.get(ref);
-            if (snap.exists()) {
+            if (snap.exists) {
               throw new Error(`Slot ${sid} already booked`);
             }
             const [start, end] = sid.split('-');
             tx.set(ref, {
               start, end,
-              userId: currentUser?.uid || null,
+              userId: auth.currentUser?.uid || null,
               displayName: name || null,
-              createdAt: serverTimestamp(),
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
               lengthMin
             });
           });
         }
-        // Clear selections
         els.grid.querySelectorAll('.slot input.sel:checked').forEach(chk => (chk.checked = false));
       } catch (err) {
         alert(err.message);
       }
     }
 
-    // -----------------------------
-    // Release selected (only if mine)
-    // -----------------------------
     async function releaseSelected() {
       const roomId = els.room.value;
       const dateISO = els.date.value;
@@ -340,12 +315,12 @@
 
       try {
         for (const sid of selected) {
-          await runTransaction(db, async (tx) => {
+          await db.runTransaction(async (tx) => {
             const ref = slotDoc(sid);
             const snap = await tx.get(ref);
-            if (!snap.exists()) return; // already free
+            if (!snap.exists) return; // already free
             const data = snap.data();
-            if (data.userId !== currentUser?.uid) {
+            if (data.userId !== auth.currentUser?.uid) {
               throw new Error(`You can only release your own reservation for slot ${sid}.`);
             }
             tx.delete(ref);
@@ -357,7 +332,6 @@
       }
     }
 
-    // Event listeners
     function refreshGrid(){
       const roomId = els.room.value;
       const dateISO = els.date.value;
@@ -383,27 +357,7 @@
       host.innerHTML = `<table style='width:100%;border-collapse:collapse'><thead><tr><th style='text-align:left;padding:8px;border-bottom:1px solid var(--border)'>Time</th><th style='text-align:left;padding:8px;border-bottom:1px solid var(--border)'>Booked by</th></tr></thead><tbody>${rows}</tbody></table>`;
     }
 
-    document.getElementById('exportCsv').addEventListener('click', () => {
-      const table = document.querySelector('#adminList table tbody');
-      const dateISO = els.date.value; const roomId = els.room.options[els.room.selectedIndex].text;
-      if (!table) return alert('No bookings to export.');
-      const data = [['Room','Date','Time','Booked by']];
-      for (const tr of table.querySelectorAll('tr')) {
-        const t = tr.children[0].textContent.trim();
-        const by = tr.children[1].textContent.trim();
-        data.push([roomId, dateISO, t, by]);
-      }
-      const csv = data.map(r => r.map(v => '"'+v.replace(/"/g,'""')+'"').join(',')).join('
-');
-      const blob = new Blob([csv], {type:'text/csv'});
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `bookings_${roomId}_${dateISO}.csv`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    });
-
-    // Initial render now (grid only). Firestore listener may error until auth is ready.
+    // Initial grid render
     refreshGrid();
 
     // Optional: keep displayName in localStorage
