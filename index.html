@@ -82,6 +82,7 @@
     </div>
 
     <div class="card" id="setup">
+      <div id="debug" class="footer"></div>
       <div class="toolbar">
         <div>
           <label>Room</label><br />
@@ -176,7 +177,7 @@
 
     // Default date = today (local)
     const todayISO = new Date().toISOString().slice(0,10);
-    els.date.value = els.date.value || todayISO;
+    els.date.value = todayISO;
 
     // Sign-in helpers (Google + optional Anonymous fallback)
     const ADMIN_UIDS = [
@@ -253,18 +254,31 @@
     let unsubscribe = null;
 
     function renderGrid(roomId, dateISO, lengthMin) {
+      const dbg = document.getElementById('debug');
+      dbg.textContent = `Rendering grid… room=${roomId}, date=${dateISO}, slot=${lengthMin}min`;
       // Clear existing listener
       if (unsubscribe) { unsubscribe(); unsubscribe = null; }
       els.grid.innerHTML = '';
 
       // Prepare static slot cells
       const map = new Map(); // id -> element
+      let slotCount = 0;
       for (const slot of generateSlots(lengthMin)) {
         const div = document.createElement('div');
         div.className = 'slot free';
         div.dataset.id = slot.id;
         div.innerHTML = `
           <div class="slot-time">${slot.start} – ${slot.end}</div>
+          <div class="meta">Free</div>
+          <label style="display:flex;gap:6px;align-items:center;margin-top:4px">
+            <input type="checkbox" class="sel" /> Select
+          </label>
+        `;
+        els.grid.appendChild(div);
+        map.set(slot.id, div);
+        slotCount++;
+      }
+      dbg.textContent = `Generated ${slotCount} slots. room=${roomId}, date=${dateISO}, slot=${lengthMin}min`; – ${slot.end}</div>
           <div class="meta">Free</div>
           <label style="display:flex;gap:6px;align-items:center;margin-top:4px">
             <input type="checkbox" class="sel" /> Select
