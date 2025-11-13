@@ -401,9 +401,6 @@
     // Initial render
     document.addEventListener('DOMContentLoaded', refreshGrid);
 
-    // Save name locally
-    els.displayName.value = localStorage.getItem('mr_display_name') || '';
-    els.displayName.addEventListener('change', () => localStorage.setItem('mr_display_name', els.displayName.value));
   </script>
 </body>
 </html>
