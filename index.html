@@ -202,42 +202,43 @@ auth.onAuthStateChanged(async (user) => {
   if (user) {
     const isAdminUser = isAdmin(user.uid);
 
-    // ---- Update auth info text (this is your request) ----
+    // --- Auth text ---
     if (isAdminUser) {
-      // Admin sees a clear admin message
       els.authInfo.textContent = `Admin signed in (${user.email || "admin"})`;
     } else {
-      // All non-admin users see this clean message
       els.authInfo.textContent = "You are signed in as a guest.";
     }
 
-    // ---- Enable regular controls ----
+    // --- Enable booking controls ---
     els.reserveSelected.disabled = false;
     els.releaseSelected.disabled = false;
     els.refresh.disabled = false;
 
-    // ---- Sign-in / sign-out buttons ----
-    els.googleSignIn.style.display = 'inline-block';
+    // --- Sign in / Sign out visibility ---
+    if (isAdminUser) {
+      // Admin mode:
+      els.googleSignIn.style.display = 'none';               // hide "Admin sign in"
+      els.googleSignOut.style.display = 'inline-block';      // show button
+      els.googleSignOut.textContent = "Sign out";            // label as Sign out
+    } else {
+      // Guest mode:
+      els.googleSignIn.style.display = 'inline-block';       // show "Admin sign in"
+      els.googleSignOut.style.display = 'none';              // hide sign-out button
+    }
 
-    // Only admins can see the "Admin Only" button
-    els.googleSignOut.style.display = isAdminUser ? 'inline-block' : 'none';
-
-    // ---- Admin-only delete button ----
+    // --- Admin delete controls ---
     els.adminDeleteSelected.style.display = isAdminUser ? 'inline-block' : 'none';
 
-    // ---- Render screen ----
     onFiltersChanged();
-
   } else {
-    // Not signed in
+    // Not logged into Firebase yet
     els.authInfo.textContent = "You are signed in as a guest.";
 
-    // Disable booking actions
     els.reserveSelected.disabled = true;
     els.releaseSelected.disabled = true;
     els.refresh.disabled = true;
 
-    // Sign-in button visible
+    // Show sign in, hide sign out
     els.googleSignIn.style.display = 'inline-block';
     els.googleSignOut.style.display = 'none';
     els.adminDeleteSelected.style.display = 'none';
