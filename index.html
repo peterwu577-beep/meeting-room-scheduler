@@ -198,28 +198,51 @@
       console.warn('Anonymous auth error:', e);
     });
 
-    auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        const name = user.displayName || 'Guest';
-        const mail = user.email ? ` <${user.email}>` : '';
-        els.authInfo.textContent = `Signed in as ${name}${mail} (uid: ${user.uid.slice(0,6)}…)`;
-        els.reserveSelected.disabled = false;
-        els.releaseSelected.disabled = false;
-        els.refresh.disabled = false;
-        els.googleSignIn.style.display = 'none';
-        els.googleSignOut.style.display = 'inline-block';
-        els.adminDeleteSelected.style.display = isAdmin(user.uid) ? 'inline-block' : 'none';
-        onFiltersChanged();
-      } else {
-        els.authInfo.textContent = 'Not signed in';
-        els.reserveSelected.disabled = true;
-        els.releaseSelected.disabled = true;
-        els.refresh.disabled = true;
-        els.googleSignIn.style.display = 'inline-block';
-        els.googleSignOut.style.display = 'none';
-        els.adminDeleteSelected.style.display = 'none';
-      }
-    });
+auth.onAuthStateChanged(async (user) => {
+  if (user) {
+    const isAdminUser = isAdmin(user.uid);
+
+    // ---- Update auth info text (this is your request) ----
+    if (isAdminUser) {
+      // Admin sees a clear admin message
+      els.authInfo.textContent = `Admin signed in (${user.email || "admin"})`;
+    } else {
+      // All non-admin users see this clean message
+      els.authInfo.textContent = "You are signed in as a guest.";
+    }
+
+    // ---- Enable regular controls ----
+    els.reserveSelected.disabled = false;
+    els.releaseSelected.disabled = false;
+    els.refresh.disabled = false;
+
+    // ---- Sign-in / sign-out buttons ----
+    els.googleSignIn.style.display = 'none';
+
+    // Only admins can see the "Admin Only" button
+    els.googleSignOut.style.display = isAdminUser ? 'inline-block' : 'none';
+
+    // ---- Admin-only delete button ----
+    els.adminDeleteSelected.style.display = isAdminUser ? 'inline-block' : 'none';
+
+    // ---- Render screen ----
+    onFiltersChanged();
+
+  } else {
+    // Not signed in
+    els.authInfo.textContent = "You are signed in as a guest.";
+
+    // Disable booking actions
+    els.reserveSelected.disabled = true;
+    els.releaseSelected.disabled = true;
+    els.refresh.disabled = true;
+
+    // Sign-in button visible
+    els.googleSignIn.style.display = 'inline-block';
+    els.googleSignOut.style.display = 'none';
+    els.adminDeleteSelected.style.display = 'none';
+  }
+});
 
     const START_HOUR = 8;
     const END_HOUR   = 18;
