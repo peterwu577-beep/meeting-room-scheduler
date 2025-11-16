@@ -383,7 +383,7 @@ auth.onAuthStateChanged(async (user) => {
             if (!snap.exists) return;
             const data = snap.data();
             if (!auth.currentUser || data.userId !== auth.currentUser.uid) {
-              throw new Error(`You can only release your own reservation for slot ${sid}.`);
+              throw new Error(`This reservation was made by another user. You can only cancel your own bookings.`);
             }
             tx.delete(ref);
           });
