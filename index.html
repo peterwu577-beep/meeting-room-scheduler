@@ -85,10 +85,6 @@
           <input id="date" type="date" />
         </div>
         <div>
-          <label>Slot length</label><br />
-          <select id="slotLength">
-            <option value="60" selected>60 min</option>
-          </select>
         </div>
         <div>
           <label>Your display name</label><br />
@@ -145,7 +141,6 @@
     const els = {
       room: document.getElementById('room'),
       date: document.getElementById('date'),
-      slotLength: document.getElementById('slotLength'),
       displayName: document.getElementById('displayName'),
       refresh: document.getElementById('refresh'),
       grid: document.getElementById('grid'),
@@ -279,7 +274,7 @@
     async function reserveSelected() {
       const roomId = els.room.value;
       const dateISO = els.date.value;
-      const lengthMin = parseInt(els.slotLength.value, 10) || 30;
+      const lengthMin = 60;
       const { slotDoc } = pathFor(roomId, dateISO);
       const name = els.displayName.value.trim();
 
