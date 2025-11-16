@@ -53,6 +53,10 @@
     .slot .meta { font-size: 12px; color: var(--muted); }
 
     .footer { font-size: 12px; color: var(--muted); margin-top: 12px; }
+
+    /* Weekly view helpers */
+    .weekly-day { margin-bottom: 16px; }
+    .weekly-day-header { font-weight: 600; margin-bottom: 8px; }
   </style>
 </head>
 <body>
@@ -85,6 +89,11 @@
           <input id="date" type="date" />
         </div>
         <div>
+          <label>View</label><br />
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button id="dailyViewBtn">Daily</button>
+            <button id="weeklyViewBtn" class="secondary">Weekly</button>
+          </div>
         </div>
         <div>
           <label>Your display name</label><br />
@@ -98,21 +107,35 @@
       <p class="footer" id="authInfo">Signing in...</p>
     </div>
 
-    <div class="card" style="margin-top:16px">
-      <div class="toolbar">
-        <button id="reserveSelected">Reserve selected</button>
-        <button class="secondary" id="releaseSelected">Release mine</button>
-        <button class="secondary" id="adminDeleteSelected" style="display:none">Release (admin)</button>
+    <!-- DAILY SECTION (interactive) -->
+    <div id="dailySection">
+      <div class="card" style="margin-top:16px">
+        <div class="toolbar">
+          <button id="reserveSelected">Reserve selected</button>
+          <button class="secondary" id="releaseSelected">Release mine</button>
+          <button class="secondary" id="adminDeleteSelected" style="display:none">Release (admin)</button>
+        </div>
+        <div id="grid" class="grid"></div>
       </div>
-      <div id="grid" class="grid"></div>
+
+      <div class="card" style="margin-top:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong>Bookings (read-only)</strong>
+          <button id="exportCsv" class="secondary">Export CSV</button>
+        </div>
+        <div id="adminList" class="footer">No bookings yet.</div>
+      </div>
     </div>
 
-    <div class="card" style="margin-top:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <strong>Bookings (read-only)</strong>
-        <button id="exportCsv" class="secondary">Export CSV</button>
+    <!-- WEEKLY SECTION (read-only) -->
+    <div id="weeklySection" style="display:none;margin-top:16px">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong>Weekly view (read-only)</strong>
+          <span class="footer">Showing the week of the selected date for the chosen room.</span>
+        </div>
+        <div id="weeklyView"></div>
       </div>
-      <div id="adminList" class="footer">No bookings yet.</div>
     </div>
 
     <p class="footer">Changes appear in real time on all devices. If two people click the same free slot simultaneously, a Firestore <em>transaction</em> ensures only the first write succeeds.</p>
@@ -149,7 +172,12 @@
       adminDeleteSelected: document.getElementById('adminDeleteSelected'),
       authInfo: document.getElementById('authInfo'),
       googleSignIn: document.getElementById('googleSignIn'),
-      googleSignOut: document.getElementById('googleSignOut')
+      googleSignOut: document.getElementById('googleSignOut'),
+      dailyViewBtn: document.getElementById('dailyViewBtn'),
+      weeklyViewBtn: document.getElementById('weeklyViewBtn'),
+      weeklyView: document.getElementById('weeklyView'),
+      dailySection: document.getElementById('dailySection'),
+      weeklySection: document.getElementById('weeklySection')
     };
 
     // Default date = today
@@ -161,6 +189,8 @@
       "iXlIbiKuX7U4DgV8mtlTl0rT25y1"
     ];
     const isAdmin = (uid) => ADMIN_UIDS.includes(uid);
+
+    let currentMode = 'daily'; // 'daily' or 'weekly'
 
     // Try anonymous auth so casual users can book
     auth.signInAnonymously().catch((e) => {
@@ -178,7 +208,7 @@
         els.googleSignIn.style.display = 'none';
         els.googleSignOut.style.display = 'inline-block';
         els.adminDeleteSelected.style.display = isAdmin(user.uid) ? 'inline-block' : 'none';
-        refreshGrid();
+        onFiltersChanged();
       } else {
         els.authInfo.textContent = 'Not signed in';
         els.reserveSelected.disabled = true;
@@ -214,7 +244,15 @@
       };
     }
 
-    let unsubscribe = null;
+    let unsubscribe = null;            // daily listener
+    let weeklyUnsubscribes = [];       // array of weekly listeners
+
+    function clearWeeklySubscriptions() {
+      weeklyUnsubscribes.forEach(fn => {
+        try { fn(); } catch (e) { console.warn('Weekly unsubscribe error', e); }
+      });
+      weeklyUnsubscribes = [];
+    }
 
     function renderGrid(roomId, dateISO, lengthMin) {
       const dbg = document.getElementById('debug');
@@ -354,6 +392,94 @@
       }
     }
 
+    // --- WEEKLY VIEW HELPERS (read-only) ---
+
+    function getWeekDates(selectedDateISO) {
+      // Week starts on Sunday
+      const base = new Date(selectedDateISO + 'T00:00:00');
+      const day = base.getDay(); // 0–6, Sun=0
+      const sunday = new Date(base);
+      sunday.setDate(base.getDate() - day);
+
+      const dates = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(sunday);
+        d.setDate(sunday.getDate() + i);
+        dates.push(d.toISOString().slice(0,10));
+      }
+      return dates;
+    }
+
+    function formatWeekday(dateISO) {
+      const date = new Date(dateISO + 'T00:00:00');
+      return date.toLocaleDateString(undefined, { weekday: 'short' });
+    }
+
+    function renderReadOnlyGridForDay(roomId, dateISO, lengthMin, hostEl) {
+      hostEl.innerHTML = '';
+      const map = new Map();
+      for (const slot of generateSlots(lengthMin)) {
+        const div = document.createElement('div');
+        div.className = 'slot free';
+        div.dataset.id = slot.id;
+        div.innerHTML = `
+          <div class="slot-time">${slot.start} – ${slot.end}</div>
+          <div class="meta">Free</div>
+        `;
+        hostEl.appendChild(div);
+        map.set(slot.id, div);
+      }
+
+      const { slotsCol } = pathFor(roomId, dateISO);
+      const unsub = slotsCol.orderBy('start').onSnapshot((snap) => {
+        for (const [, el] of map) {
+          el.classList.remove('busy');
+          el.classList.add('free');
+          el.querySelector('.meta').textContent = 'Free';
+        }
+        snap.forEach((docSnap) => {
+          const d = docSnap.data();
+          const el = map.get(docSnap.id);
+          if (!el) return;
+          el.classList.remove('free');
+          el.classList.add('busy');
+          const by = d.displayName || (d.userId ? d.userId.slice(0,6) : '—');
+          el.querySelector('.meta').textContent = `Booked by ${by}`;
+        });
+      }, (err) => {
+        console.error('Firestore listener error (weekly):', err);
+      });
+
+      weeklyUnsubscribes.push(unsub);
+    }
+
+    function renderWeeklyView(roomId, selectedDateISO) {
+      const container = els.weeklyView;
+      container.innerHTML = '';
+      clearWeeklySubscriptions();
+
+      if (!roomId || !selectedDateISO) return;
+
+      const weekDates = getWeekDates(selectedDateISO);
+      weekDates.forEach((dateISO) => {
+        const dayWrapper = document.createElement('div');
+        dayWrapper.className = 'weekly-day';
+
+        const header = document.createElement('div');
+        header.className = 'weekly-day-header';
+        header.textContent = `${formatWeekday(dateISO)} (${dateISO})`;
+
+        const grid = document.createElement('div');
+        grid.className = 'grid';
+
+        dayWrapper.appendChild(header);
+        dayWrapper.appendChild(grid);
+        container.appendChild(dayWrapper);
+
+        renderReadOnlyGridForDay(roomId, dateISO, 60, grid);
+      });
+    }
+
     function refreshGrid(){
       const roomId = els.room.value;
       const dateISO = els.date.value;
@@ -361,12 +487,50 @@
       renderGrid(roomId, dateISO, lengthMin);
     }
 
-    els.room.addEventListener('change', refreshGrid);
-    els.date.addEventListener('change', refreshGrid);
-    els.refresh.addEventListener('click', refreshGrid);
+    function onFiltersChanged() {
+      if (currentMode === 'daily') {
+        refreshGrid();
+      } else {
+        renderWeeklyView(els.room.value, els.date.value);
+      }
+    }
+
+    function setMode(mode) {
+      if (mode === currentMode) return;
+      currentMode = mode;
+
+      if (mode === 'daily') {
+        els.dailySection.style.display = '';
+        els.weeklySection.style.display = 'none';
+        clearWeeklySubscriptions();
+        els.dailyViewBtn.classList.remove('secondary');
+        els.weeklyViewBtn.classList.add('secondary');
+        refreshGrid();
+      } else {
+        els.dailySection.style.display = 'none';
+        els.weeklySection.style.display = '';
+        if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+        els.dailyViewBtn.classList.add('secondary');
+        els.weeklyViewBtn.classList.remove('secondary');
+        renderWeeklyView(els.room.value, els.date.value);
+      }
+    }
+
+    els.room.addEventListener('change', onFiltersChanged);
+    els.date.addEventListener('change', onFiltersChanged);
+    els.refresh.addEventListener('click', onFiltersChanged);
     els.reserveSelected.addEventListener('click', reserveSelected);
     els.releaseSelected.addEventListener('click', releaseSelected);
     els.adminDeleteSelected.addEventListener('click', adminDeleteSelected);
+
+    els.dailyViewBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      setMode('daily');
+    });
+    els.weeklyViewBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      setMode('weekly');
+    });
 
     // Google sign-in/out (popup, fallback to redirect)
     const provider = new firebase.auth.GoogleAuthProvider();
@@ -396,7 +560,7 @@
     }
 
     // Initial render
-    document.addEventListener('DOMContentLoaded', refreshGrid);
+    document.addEventListener('DOMContentLoaded', onFiltersChanged);
 
   </script>
 </body>
