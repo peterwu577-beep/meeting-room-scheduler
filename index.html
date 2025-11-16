@@ -357,13 +357,12 @@
     function refreshGrid(){
       const roomId = els.room.value;
       const dateISO = els.date.value;
-      const lengthMin = parseInt(els.slotLength.value, 10) || 30;
+      const lengthMin = 60;
       renderGrid(roomId, dateISO, lengthMin);
     }
 
     els.room.addEventListener('change', refreshGrid);
     els.date.addEventListener('change', refreshGrid);
-    els.slotLength.addEventListener('change', refreshGrid);
     els.refresh.addEventListener('click', refreshGrid);
     els.reserveSelected.addEventListener('click', reserveSelected);
     els.releaseSelected.addEventListener('click', releaseSelected);
