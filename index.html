@@ -217,7 +217,7 @@ auth.onAuthStateChanged(async (user) => {
     els.refresh.disabled = false;
 
     // ---- Sign-in / sign-out buttons ----
-    els.googleSignIn.style.display = 'none';
+    els.googleSignIn.style.display = 'inline-block';
 
     // Only admins can see the "Admin Only" button
     els.googleSignOut.style.display = isAdminUser ? 'inline-block' : 'none';
