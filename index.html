@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Meeting Room Scheduler (Firebase)</title>
   <style>
+    #debug {
+      display: none;
+    }
+
     :root {
       --bg: #f7f7fb;
       --text: #111827;
@@ -83,7 +87,6 @@
         <div>
           <label>Slot length</label><br />
           <select id="slotLength">
-            <option value="30">30 min</option>
             <option value="60" selected>60 min</option>
           </select>
         </div>
